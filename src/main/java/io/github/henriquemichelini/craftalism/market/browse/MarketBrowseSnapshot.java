@@ -3,7 +3,7 @@ package io.github.henriquemichelini.craftalism.market.browse;
 import java.util.List;
 import java.util.Optional;
 
-public record MarketBrowseSnapshot(List<MarketCategorySnapshot> categories, boolean readOnly) {
+public record MarketBrowseSnapshot(String snapshotVersion, List<MarketCategorySnapshot> categories, boolean readOnly) {
     public MarketBrowseSnapshot {
         categories = List.copyOf(categories);
     }
@@ -20,6 +20,6 @@ public record MarketBrowseSnapshot(List<MarketCategorySnapshot> categories, bool
     }
 
     public MarketBrowseSnapshot withReadOnly(boolean readOnly) {
-        return new MarketBrowseSnapshot(categories, readOnly);
+        return new MarketBrowseSnapshot(snapshotVersion, categories, readOnly);
     }
 }

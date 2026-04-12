@@ -20,7 +20,10 @@ class HttpMarketBrowseSnapshotProviderTest {
         configuration.set("market-display.items.wheat.description", java.util.List.of("&7A common crop."));
 
         HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
-                (uri, timeout) -> """
+                new MarketApiTransport() {
+                    @Override
+                    public String get(java.net.URI uri, java.time.Duration timeout) {
+                        return """
                         {
                           "snapshotVersion": "opaque-version-token",
                           "generatedAt": "2026-04-12T18:30:00Z",
@@ -46,7 +49,14 @@ class HttpMarketBrowseSnapshotProviderTest {
                             }
                           ]
                         }
-                        """,
+                        """;
+                    }
+
+                    @Override
+                    public String postJson(java.net.URI uri, String body, java.time.Duration timeout, String bearerToken) {
+                        throw new UnsupportedOperationException();
+                    }
+                },
                 URI.create("http://localhost:8080/market/snapshot"),
                 Duration.ofSeconds(5),
                 configuration
@@ -55,6 +65,7 @@ class HttpMarketBrowseSnapshotProviderTest {
         MarketBrowseSnapshot snapshot = provider.loadSnapshot();
 
         assertFalse(snapshot.readOnly());
+        assertEquals("opaque-version-token", snapshot.snapshotVersion());
         assertEquals(1, snapshot.categories().size());
         assertEquals(Material.WHEAT, snapshot.categories().getFirst().icon());
         assertEquals("4.8 coins", snapshot.categories().getFirst().items().getFirst().buyEstimate());
@@ -64,7 +75,17 @@ class HttpMarketBrowseSnapshotProviderTest {
     @Test
     void rejectsMissingCategoriesArray() {
         HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
-                (uri, timeout) -> "{\"snapshotVersion\":\"x\"}",
+                new MarketApiTransport() {
+                    @Override
+                    public String get(java.net.URI uri, java.time.Duration timeout) {
+                        return "{\"snapshotVersion\":\"x\"}";
+                    }
+
+                    @Override
+                    public String postJson(java.net.URI uri, String body, java.time.Duration timeout, String bearerToken) {
+                        throw new UnsupportedOperationException();
+                    }
+                },
                 URI.create("http://localhost:8080/market/snapshot"),
                 Duration.ofSeconds(5),
                 new YamlConfiguration()

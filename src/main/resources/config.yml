@@ -5,13 +5,17 @@ messages:
   unavailable-no-cache: "&cThe market is unavailable right now. No cached data is available yet."
   opened-live: "&aMarket data loaded."
   opened-read-only: "&6Market browsing is in read-only preview mode."
+  quote-unavailable: "&cQuote data is currently unavailable."
   trade-disabled: "&cTrading is not available yet. This screen is informational only."
 
 market-api:
   base-url: "http://127.0.0.1:8080"
   snapshot-path: "/market/snapshot"
+  quote-path: "/market/quote"
+  auth-token: ""
   connect-timeout-ms: 3000
   request-timeout-ms: 5000
+  quote-debounce-ticks: 6
 
 market-display:
   categories:

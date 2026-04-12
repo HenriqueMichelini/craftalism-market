@@ -13,7 +13,8 @@ The repository currently provides the first read-only browsing slice:
 - root-level Gradle build and Paper plugin packaging
 - `/market` command entry
 - API-backed snapshot browsing with local cached fallback
-- category, item, and informational trade GUIs
+- category and item browsing GUIs
+- trade GUI quantity controls with debounced quote refresh
 - in-memory session tracking and cleanup on inventory close/player quit
 
-Quote flow and trade execution are intentionally not implemented yet.
+Trade execution is intentionally not implemented yet.

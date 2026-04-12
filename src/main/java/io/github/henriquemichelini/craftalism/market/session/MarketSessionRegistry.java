@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.UnaryOperator;
 
 public final class MarketSessionRegistry {
     private final Map<UUID, MarketSession> sessions = new ConcurrentHashMap<>();
@@ -14,6 +15,10 @@ public final class MarketSessionRegistry {
 
     public Optional<MarketSession> get(UUID playerId) {
         return Optional.ofNullable(sessions.get(playerId));
+    }
+
+    public Optional<MarketSession> update(UUID playerId, UnaryOperator<MarketSession> updater) {
+        return Optional.ofNullable(sessions.computeIfPresent(playerId, (ignored, session) -> updater.apply(session)));
     }
 
     public void remove(UUID playerId) {

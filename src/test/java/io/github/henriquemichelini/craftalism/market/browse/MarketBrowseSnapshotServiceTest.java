@@ -56,7 +56,7 @@ class MarketBrowseSnapshotServiceTest {
     }
 
     private static MarketBrowseSnapshot sampleSnapshot(boolean readOnly) {
-        return new MarketBrowseSnapshot(List.of(
+        return new MarketBrowseSnapshot("snapshot-v1", List.of(
                 new MarketCategorySnapshot(
                         "farming",
                         "Farming",

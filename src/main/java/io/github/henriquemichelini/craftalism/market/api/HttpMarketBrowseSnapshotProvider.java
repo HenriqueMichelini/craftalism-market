@@ -9,7 +9,6 @@ import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot
 import io.github.henriquemichelini.craftalism.market.browse.MarketCategorySnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketItemSnapshot;
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.io.IOException;
@@ -17,8 +16,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-
 public final class HttpMarketBrowseSnapshotProvider implements MarketBrowseSnapshotProvider {
     private final MarketApiTransport transport;
     private final URI snapshotUri;
@@ -70,7 +67,7 @@ public final class HttpMarketBrowseSnapshotProvider implements MarketBrowseSnaps
             ));
         }
 
-        return new MarketBrowseSnapshot(categories, false);
+        return new MarketBrowseSnapshot(optionalString(root, "snapshotVersion", ""), categories, false);
     }
 
     private List<MarketItemSnapshot> parseItems(String categoryId, JsonArray itemsJson) {

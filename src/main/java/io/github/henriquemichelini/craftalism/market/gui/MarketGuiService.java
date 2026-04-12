@@ -1,9 +1,14 @@
 package io.github.henriquemichelini.craftalism.market.gui;
 
+import io.github.henriquemichelini.craftalism.market.api.MarketQuoteClient;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuotePair;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuoteResult;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.browse.MarketCategorySnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketItemSnapshot;
+import io.github.henriquemichelini.craftalism.market.session.MarketQuoteStatus;
 import io.github.henriquemichelini.craftalism.market.session.MarketScreen;
 import io.github.henriquemichelini.craftalism.market.session.MarketSession;
 import io.github.henriquemichelini.craftalism.market.session.MarketSessionRegistry;
@@ -17,25 +22,40 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MarketGuiService {
+    private static final int QUANTITY_DECREMENT_SLOT = 10;
+    private static final int QUANTITY_DISPLAY_SLOT = 12;
     private static final int TRADE_BUY_SLOT = 11;
     private static final int TRADE_ITEM_SLOT = 13;
     private static final int TRADE_SELL_SLOT = 15;
+    private static final int QUANTITY_INCREMENT_SLOT = 16;
 
+    private final Plugin plugin;
     private final MarketBrowseSnapshotService snapshotService;
+    private final MarketQuoteClient quoteClient;
     private final MarketSessionRegistry sessionRegistry;
     private final FileConfiguration config;
+    private final Map<UUID, BukkitTask> pendingQuoteTasks = new ConcurrentHashMap<>();
 
     public MarketGuiService(
+            Plugin plugin,
             MarketBrowseSnapshotService snapshotService,
+            MarketQuoteClient quoteClient,
             MarketSessionRegistry sessionRegistry,
             FileConfiguration config
     ) {
+        this.plugin = plugin;
         this.snapshotService = snapshotService;
+        this.quoteClient = quoteClient;
         this.sessionRegistry = sessionRegistry;
         this.config = config;
     }
@@ -56,7 +76,7 @@ public final class MarketGuiService {
 
         holder.setInventory(inventory);
         player.openInventory(inventory);
-        sessionRegistry.put(player.getUniqueId(), new MarketSession(MarketScreen.CATEGORY_LIST, null, null, snapshot.readOnly()));
+        sessionRegistry.put(player.getUniqueId(), MarketSession.categoryList(snapshot.readOnly()));
     }
 
     public void handleClick(InventoryClickEvent event) {
@@ -133,13 +153,24 @@ public final class MarketGuiService {
 
     private void handleTradeClick(Player player, String categoryId, String itemId, int rawSlot) {
         if (rawSlot == backSlot(3)) {
+            cancelPendingQuote(player.getUniqueId());
             openCategory(player, categoryId);
+            return;
+        }
+
+        if (rawSlot == QUANTITY_DECREMENT_SLOT) {
+            adjustTradeQuantity(player, categoryId, itemId, -1);
+            return;
+        }
+
+        if (rawSlot == QUANTITY_INCREMENT_SLOT) {
+            adjustTradeQuantity(player, categoryId, itemId, 1);
             return;
         }
 
         if (rawSlot == TRADE_BUY_SLOT || rawSlot == TRADE_SELL_SLOT) {
             player.sendMessage(colorize(message("messages.trade-disabled")));
-            openTrade(player, categoryId, itemId);
+            refreshTrade(player, categoryId, itemId);
         }
     }
 
@@ -172,10 +203,14 @@ public final class MarketGuiService {
 
         holder.setInventory(inventory);
         player.openInventory(inventory);
-        sessionRegistry.put(player.getUniqueId(), new MarketSession(MarketScreen.ITEM_LIST, categoryId, null, snapshot.readOnly()));
+        sessionRegistry.put(player.getUniqueId(), MarketSession.itemList(categoryId, snapshot.readOnly()));
     }
 
     public void openTrade(Player player, String categoryId, String itemId) {
+        openTrade(player, categoryId, itemId, null);
+    }
+
+    private void openTrade(Player player, String categoryId, String itemId, MarketSession existingSession) {
         MarketBrowseSnapshot snapshot = currentSnapshot(player);
         if (snapshot == null) {
             return;
@@ -188,26 +223,33 @@ public final class MarketGuiService {
             return;
         }
 
-        TradeViewHolder holder = new TradeViewHolder(categoryId, itemId);
+        MarketSession session = existingSession != null
+                ? existingSession
+                : MarketSession.tradeView(categoryId, itemId, snapshot.readOnly());
+        renderTrade(player, snapshot, category, item, session);
+        sessionRegistry.put(player.getUniqueId(), session);
+
+        if (!session.readOnly() && session.quoteStatus() == MarketQuoteStatus.PENDING) {
+            scheduleQuoteRefresh(player.getUniqueId(), session, snapshot.snapshotVersion());
+        }
+    }
+
+    private void renderTrade(
+            Player player,
+            MarketBrowseSnapshot snapshot,
+            MarketCategorySnapshot category,
+            MarketItemSnapshot item,
+            MarketSession session
+    ) {
+        TradeViewHolder holder = new TradeViewHolder(category.id(), item.id());
         Inventory inventory = createInventory(holder, 3, colorize(item.displayName()));
 
-        inventory.setItem(TRADE_BUY_SLOT, simpleItem(
-                Material.BARRIER,
-                "&cBuy Unavailable",
-                List.of(
-                        "&7Trading is disabled in this slice.",
-                        "&7This screen is informational only."
-                )
-        ));
-        inventory.setItem(TRADE_ITEM_SLOT, tradePreview(item, snapshot.readOnly()));
-        inventory.setItem(TRADE_SELL_SLOT, simpleItem(
-                Material.BARRIER,
-                "&cSell Unavailable",
-                List.of(
-                        "&7Trading is disabled in this slice.",
-                        "&7This screen is informational only."
-                )
-        ));
+        inventory.setItem(QUANTITY_DECREMENT_SLOT, quantityButton(Material.RED_STAINED_GLASS_PANE, "&c-1"));
+        inventory.setItem(QUANTITY_DISPLAY_SLOT, quantityDisplay(session.quantity(), session.quoteStatusMessage()));
+        inventory.setItem(TRADE_BUY_SLOT, quoteActionButton("Buy", session.buyQuotedTotal(), session.quoteStatus(), snapshot.readOnly()));
+        inventory.setItem(TRADE_ITEM_SLOT, tradePreview(item, session, snapshot.readOnly()));
+        inventory.setItem(TRADE_SELL_SLOT, quoteActionButton("Sell", session.sellQuotedTotal(), session.quoteStatus(), snapshot.readOnly()));
+        inventory.setItem(QUANTITY_INCREMENT_SLOT, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+1"));
         inventory.setItem(backSlot(3), simpleItem(
                 Material.ARROW,
                 "&eBack",
@@ -216,7 +258,11 @@ public final class MarketGuiService {
 
         holder.setInventory(inventory);
         player.openInventory(inventory);
-        sessionRegistry.put(player.getUniqueId(), new MarketSession(MarketScreen.TRADE_VIEW, categoryId, itemId, snapshot.readOnly()));
+    }
+
+    public void closeSession(UUID playerId) {
+        cancelPendingQuote(playerId);
+        sessionRegistry.remove(playerId);
     }
 
     private Inventory createInventory(MarketInventoryHolder holder, int rows, String title) {
@@ -241,6 +287,122 @@ public final class MarketGuiService {
                 .map(MarketSession::readOnly)
                 .orElse(true);
         return current.withReadOnly(readOnly);
+    }
+
+    private void adjustTradeQuantity(Player player, String categoryId, String itemId, int delta) {
+        MarketSession updatedSession = sessionRegistry.update(player.getUniqueId(), session -> {
+            if (session.screen() != MarketScreen.TRADE_VIEW
+                    || !categoryId.equals(session.selectedCategoryId())
+                    || !itemId.equals(session.selectedItemId())) {
+                return session;
+            }
+
+            int quantity = Math.max(1, session.quantity() + delta);
+            if (quantity == session.quantity()) {
+                return session;
+            }
+
+            return session.withQuantityPending(quantity);
+        }).orElse(null);
+
+        if (updatedSession == null || updatedSession.screen() != MarketScreen.TRADE_VIEW) {
+            return;
+        }
+
+        refreshTrade(player, categoryId, itemId);
+    }
+
+    private void refreshTrade(Player player, String categoryId, String itemId) {
+        openTrade(player, categoryId, itemId, sessionRegistry.get(player.getUniqueId()).orElse(null));
+    }
+
+    private void scheduleQuoteRefresh(UUID playerId, MarketSession session, String snapshotVersion) {
+        cancelPendingQuote(playerId);
+        long debounceTicks = Math.max(1L, config.getLong("market-api.quote-debounce-ticks", 6L));
+        BukkitTask task = plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            try {
+                MarketQuoteResult buyQuote = quoteClient.requestQuote(
+                        session.selectedItemId(),
+                        MarketQuoteSide.BUY,
+                        session.quantity(),
+                        snapshotVersion
+                );
+                MarketQuoteResult sellQuote = quoteClient.requestQuote(
+                        session.selectedItemId(),
+                        MarketQuoteSide.SELL,
+                        session.quantity(),
+                        snapshotVersion
+                );
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        applyQuoteResult(playerId, session, new MarketQuotePair(buyQuote, sellQuote))
+                );
+            } catch (RuntimeException error) {
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        applyQuoteFailure(playerId, session, quoteFailureMessage(error))
+                );
+            }
+        }, debounceTicks);
+        pendingQuoteTasks.put(playerId, task);
+    }
+
+    private void applyQuoteResult(UUID playerId, MarketSession expectedSession, MarketQuotePair quotePair) {
+        pendingQuoteTasks.remove(playerId);
+        MarketSession updated = sessionRegistry.update(playerId, current -> {
+            if (!current.matchesTradeRequest(
+                    expectedSession.selectedCategoryId(),
+                    expectedSession.selectedItemId(),
+                    expectedSession.quantity(),
+                    expectedSession.quoteRequestVersion()
+            )) {
+                return current;
+            }
+
+            return current.withQuotePair(quotePair);
+        }).orElse(null);
+
+        if (updated != null) {
+            rerenderTradeIfVisible(playerId, updated);
+        }
+    }
+
+    private void applyQuoteFailure(UUID playerId, MarketSession expectedSession, String failureMessage) {
+        pendingQuoteTasks.remove(playerId);
+        MarketSession updated = sessionRegistry.update(playerId, current -> {
+            if (!current.matchesTradeRequest(
+                    expectedSession.selectedCategoryId(),
+                    expectedSession.selectedItemId(),
+                    expectedSession.quantity(),
+                    expectedSession.quoteRequestVersion()
+            )) {
+                return current;
+            }
+
+            return current.withQuoteUnavailable(failureMessage);
+        }).orElse(null);
+
+        if (updated != null) {
+            rerenderTradeIfVisible(playerId, updated);
+        }
+    }
+
+    private void rerenderTradeIfVisible(UUID playerId, MarketSession session) {
+        Player player = plugin.getServer().getPlayer(playerId);
+        if (player == null || !player.isOnline() || session.screen() != MarketScreen.TRADE_VIEW) {
+            return;
+        }
+
+        if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof TradeViewHolder)) {
+            return;
+        }
+
+        openTrade(player, session.selectedCategoryId(), session.selectedItemId(), session);
+    }
+
+    private void cancelPendingQuote(UUID playerId) {
+        BukkitTask task = pendingQuoteTasks.remove(playerId);
+        if (task != null) {
+            task.cancel();
+        }
     }
 
     private int rowsFor(int itemCount) {
@@ -273,7 +435,7 @@ public final class MarketGuiService {
         return simpleItem(item.icon(), item.displayName(), lore);
     }
 
-    private ItemStack tradePreview(MarketItemSnapshot item, boolean readOnly) {
+    private ItemStack tradePreview(MarketItemSnapshot item, MarketSession session, boolean readOnly) {
         List<String> lore = new ArrayList<>(colorize(item.description()));
         lore.add("");
         lore.add(colorize("&7Buy estimate: &f" + item.buyEstimate()));
@@ -282,9 +444,65 @@ public final class MarketGuiService {
         lore.add(colorize("&7Stock: &f" + item.stockDisplay()));
         lore.add(colorize("&7Updated: &f" + item.lastUpdated()));
         lore.add("");
+        lore.add(colorize("&7Quantity: &f" + session.quantity()));
+        lore.add(colorize("&7Quote status: &f" + quoteStatusLabel(session.quoteStatus(), session.quoteStatusMessage())));
+        if (session.buyQuotedTotal() != null) {
+            lore.add(colorize("&7Quoted buy total: &f" + session.buyQuotedTotal()));
+        }
+        if (session.sellQuotedTotal() != null) {
+            lore.add(colorize("&7Quoted sell total: &f" + session.sellQuotedTotal()));
+        }
+        lore.add("");
         lore.add(colorize(readOnly ? "&6Read-only market preview" : "&aLive market view"));
-        lore.add(colorize("&7Reopen &f/market &7to refresh."));
+        lore.add(colorize(readOnly ? "&7Trading stays disabled while using cache." : "&7Quote updates are debounced automatically."));
         return simpleItem(item.icon(), item.displayName(), lore);
+    }
+
+    private ItemStack quoteActionButton(String action, String quotedTotal, MarketQuoteStatus quoteStatus, boolean readOnly) {
+        List<String> lore = new ArrayList<>();
+        lore.add(colorize("&7Execution is not enabled yet."));
+        if (quotedTotal != null) {
+            lore.add(colorize("&7Latest quoted total: &f" + quotedTotal));
+        }
+        lore.add(colorize("&7State: &f" + quoteStatusLabel(quoteStatus, null)));
+
+        Material material = Material.BARRIER;
+        String name = "&c" + action + " Unavailable";
+        if (!readOnly && quoteStatus == MarketQuoteStatus.PENDING) {
+            material = Material.CLOCK;
+            name = "&6" + action + " Quote Pending";
+        } else if (!readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE) {
+            material = Material.GOLD_NUGGET;
+            name = "&e" + action + " Ready";
+        }
+
+        return simpleItem(material, name, lore);
+    }
+
+    private ItemStack quantityButton(Material material, String name) {
+        return simpleItem(material, name, List.of("&7Adjust trade quantity."));
+    }
+
+    private ItemStack quantityDisplay(int quantity, String statusMessage) {
+        List<String> lore = new ArrayList<>();
+        lore.add(colorize("&7Current quantity for quotes."));
+        if (statusMessage != null && !statusMessage.isBlank()) {
+            lore.add(colorize("&7Status: &f" + statusMessage));
+        }
+        return simpleItem(Material.PAPER, "&fQuantity: &e" + quantity, lore);
+    }
+
+    private String quoteStatusLabel(MarketQuoteStatus status, String fallbackMessage) {
+        return switch (status) {
+            case DISABLED -> fallbackMessage != null ? fallbackMessage : "Read-only";
+            case PENDING -> fallbackMessage != null ? fallbackMessage : "Refreshing";
+            case AVAILABLE -> fallbackMessage != null ? fallbackMessage : "Ready";
+            case UNAVAILABLE -> fallbackMessage != null ? fallbackMessage : "Unavailable";
+        };
+    }
+
+    private String quoteFailureMessage(RuntimeException error) {
+        return config.getString("messages.quote-unavailable", "Quote unavailable.");
     }
 
     private ItemStack simpleItem(Material material, String name, List<String> lore) {
