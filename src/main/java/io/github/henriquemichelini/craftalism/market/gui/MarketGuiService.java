@@ -1,7 +1,7 @@
 package io.github.henriquemichelini.craftalism.market.gui;
 
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot;
-import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotProvider;
+import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.browse.MarketCategorySnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketItemSnapshot;
 import io.github.henriquemichelini.craftalism.market.session.MarketScreen;
@@ -26,22 +26,21 @@ public final class MarketGuiService {
     private static final int TRADE_ITEM_SLOT = 13;
     private static final int TRADE_SELL_SLOT = 15;
 
-    private final MarketBrowseSnapshotProvider snapshotProvider;
+    private final MarketBrowseSnapshotService snapshotService;
     private final MarketSessionRegistry sessionRegistry;
     private final FileConfiguration config;
 
     public MarketGuiService(
-            MarketBrowseSnapshotProvider snapshotProvider,
+            MarketBrowseSnapshotService snapshotService,
             MarketSessionRegistry sessionRegistry,
             FileConfiguration config
     ) {
-        this.snapshotProvider = snapshotProvider;
+        this.snapshotService = snapshotService;
         this.sessionRegistry = sessionRegistry;
         this.config = config;
     }
 
-    public void openMainMenu(Player player) {
-        MarketBrowseSnapshot snapshot = snapshotProvider.loadSnapshot();
+    public void openMainMenu(Player player, MarketBrowseSnapshot snapshot) {
         if (snapshot.categories().isEmpty()) {
             player.sendMessage(colorize(message("messages.unavailable-no-cache")));
             return;
@@ -58,7 +57,6 @@ public final class MarketGuiService {
         holder.setInventory(inventory);
         player.openInventory(inventory);
         sessionRegistry.put(player.getUniqueId(), new MarketSession(MarketScreen.CATEGORY_LIST, null, null, snapshot.readOnly()));
-        player.sendMessage(colorize(message("messages.opened-read-only")));
     }
 
     public void handleClick(InventoryClickEvent event) {
@@ -96,7 +94,11 @@ public final class MarketGuiService {
     }
 
     private void handleCategoryListClick(Player player, int rawSlot) {
-        MarketBrowseSnapshot snapshot = snapshotProvider.loadSnapshot();
+        MarketBrowseSnapshot snapshot = currentSnapshot(player);
+        if (snapshot == null) {
+            return;
+        }
+
         if (rawSlot >= snapshot.categories().size()) {
             return;
         }
@@ -105,7 +107,11 @@ public final class MarketGuiService {
     }
 
     private void handleCategoryItemsClick(Player player, String categoryId, int rawSlot) {
-        MarketBrowseSnapshot snapshot = snapshotProvider.loadSnapshot();
+        MarketBrowseSnapshot snapshot = currentSnapshot(player);
+        if (snapshot == null) {
+            return;
+        }
+
         MarketCategorySnapshot category = snapshot.findCategory(categoryId).orElse(null);
         if (category == null) {
             player.closeInventory();
@@ -114,7 +120,7 @@ public final class MarketGuiService {
         }
 
         if (rawSlot == backSlot(rowsFor(category.items().size() + 1))) {
-            openMainMenu(player);
+            openCurrentMainMenu(player);
             return;
         }
 
@@ -138,7 +144,11 @@ public final class MarketGuiService {
     }
 
     public void openCategory(Player player, String categoryId) {
-        MarketBrowseSnapshot snapshot = snapshotProvider.loadSnapshot();
+        MarketBrowseSnapshot snapshot = currentSnapshot(player);
+        if (snapshot == null) {
+            return;
+        }
+
         MarketCategorySnapshot category = snapshot.findCategory(categoryId).orElse(null);
         if (category == null) {
             player.sendMessage(colorize(message("messages.unavailable-no-cache")));
@@ -166,7 +176,11 @@ public final class MarketGuiService {
     }
 
     public void openTrade(Player player, String categoryId, String itemId) {
-        MarketBrowseSnapshot snapshot = snapshotProvider.loadSnapshot();
+        MarketBrowseSnapshot snapshot = currentSnapshot(player);
+        if (snapshot == null) {
+            return;
+        }
+
         MarketCategorySnapshot category = snapshot.findCategory(categoryId).orElse(null);
         MarketItemSnapshot item = snapshot.findItem(categoryId, itemId).orElse(null);
         if (category == null || item == null) {
@@ -207,6 +221,26 @@ public final class MarketGuiService {
 
     private Inventory createInventory(MarketInventoryHolder holder, int rows, String title) {
         return Bukkit.createInventory(holder, rows * 9, colorize(title));
+    }
+
+    private void openCurrentMainMenu(Player player) {
+        MarketBrowseSnapshot snapshot = currentSnapshot(player);
+        if (snapshot != null) {
+            openMainMenu(player, snapshot);
+        }
+    }
+
+    private MarketBrowseSnapshot currentSnapshot(Player player) {
+        MarketBrowseSnapshot current = snapshotService.currentSnapshot().orElse(null);
+        if (current == null) {
+            player.sendMessage(colorize(message("messages.unavailable-no-cache")));
+            return null;
+        }
+
+        boolean readOnly = sessionRegistry.get(player.getUniqueId())
+                .map(MarketSession::readOnly)
+                .orElse(true);
+        return current.withReadOnly(readOnly);
     }
 
     private int rowsFor(int itemCount) {

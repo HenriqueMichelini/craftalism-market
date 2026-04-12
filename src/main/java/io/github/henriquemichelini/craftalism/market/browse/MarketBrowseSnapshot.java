@@ -18,4 +18,8 @@ public record MarketBrowseSnapshot(List<MarketCategorySnapshot> categories, bool
         return findCategory(categoryId)
                 .flatMap(category -> category.findItem(itemId));
     }
+
+    public MarketBrowseSnapshot withReadOnly(boolean readOnly) {
+        return new MarketBrowseSnapshot(categories, readOnly);
+    }
 }
