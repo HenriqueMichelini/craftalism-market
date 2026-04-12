@@ -1,0 +1,6 @@
+name: CraftalismMarket
+version: ${version}
+main: io.github.henriquemichelini.craftalism.market.MarketPlugin
+api-version: '1.21'
+description: Craftalism market Paper plugin client.
+website: https://github.com/HenriqueMichelini/craftalism-market
