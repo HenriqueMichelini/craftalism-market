@@ -9,6 +9,7 @@ messages:
   execute-unavailable: "&cTrade execution is currently unavailable."
   trade-disabled: "&cTrading is not available right now."
   buy-success: "&aPurchased {quantity} item(s) for {total}."
+  buy-overflow: "&ePurchased {quantity} item(s) for {total}. Dropped {dropped} item(s) because your inventory was full."
   sell-success: "&aSold {quantity} item(s) for {total}."
   sell-no-items: "&cYou do not have that item in your inventory."
   sell-quantity-adjusted: "&eAdjusted sell quantity to {quantity} based on your inventory."

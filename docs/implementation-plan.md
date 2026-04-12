@@ -15,137 +15,41 @@ This repository consumes, and does not own:
 
 Those consumed contracts must be defined in `craftalism-api`.
 
-## Next Plan
-### 1. Define the API Contract in `craftalism-api`
-Create the missing API-side contract documentation for:
-- market snapshots
-- quote request/response
-- execute request/response
-- rejection codes
-- `snapshotVersion`
-- `quoteToken`
-
-Do not implement plugin trade behavior against guessed backend semantics.
-
-### 1.1 Current API Follow-Up Status
-`craftalism-api` has completed the MVP contract implementation and identified the next hardening steps:
-- replace bootstrap/seed catalog logic with a real catalog source
-- decide whether in-memory quote storage is acceptable beyond MVP
-- add integration coverage for quote/execute success and rejection paths
-- clarify sell-boundary ownership for inventory possession validation
-- coordinate exact contract adoption in `craftalism-market`
-
-Implication for this repository:
-- the plugin can begin consumer adoption of snapshot, quote, and execute contracts
-- sell execution must still stop at the ownership boundary until inventory validation responsibilities are confirmed
-
-### 2. Resolved Decisions For The First Slice
-The first implementation slice is limited to repo-local scaffolding and read-only browsing.
-
-Resolved decisions:
-- if no cached snapshot data exists and the API is unavailable, do not open any GUI; send a clear unavailable message and stop
-- if cached data exists and the API is unavailable, allow category, item, and trade browsing in informational mode, but disable buy/sell and clearly mark values as cached/outdated
-- use a small local data-provider interface backed by plugin resources/config instead of a real API client for the first slice
-- store sample browsing data in plugin config/resources, not hardcoded Java constants
-- always open the main category GUI first, even when only one category exists
-- defer live viewer push updates for the first slice; refresh happens only on reopen
-- reopening `/market` is the only refresh path in the first slice; no clickable refresh control yet
-
-Constraints preserved by these decisions:
-- stale mode stays strictly read-only
-- no API transport or payload semantics are guessed locally
-- GUI, cache, and session behavior can be implemented and tested without cross-repo contract drift
-
-### 3. Scaffold the Plugin Module Locally
-In this repository, create the initial plugin-side structure for:
+## Current State
+Completed in this repository:
+- root-level Paper plugin packaging
 - `/market` command entry
-- GUI screen classes
-- session/viewer registry
-- cache interfaces and models
-- async orchestration layer
-- config files for categories, icons, lore, and fallback items
+- API-backed snapshot browsing with cached read-only fallback
+- category and trade GUI flow
+- debounced quote requests with session-bound stale protection
+- buy execution using API-issued `quoteToken` and `snapshotVersion`
+- plugin-local item delivery after successful buys, with overflow drops
+- sell execution using plugin-local inventory validation before execute
+- post-success local item removal after sell settlement
+- rejection-code mapping using API `code`, not ad-hoc text
+- session cleanup on inventory close and player quit
 
-### 4. Implement Read-Only Browsing First
-Before executable trading:
-- open the main market GUI
-- navigate categories
-- render cached snapshots
-- support stale-mode browsing
-- add refresh hooks
-- wire viewer/session cleanup
+Current sell boundary:
+- `craftalism-market` validates player inventory possession locally on the main thread before sell execute
+- `craftalism-market` reduces requested sell quantity to the quantity actually held, or stops if the player has none
+- `craftalism-api` remains authoritative for quote validity, pricing, and economic settlement
+- `craftalism-market` removes sold items locally only after successful API execute
+- any post-execute local-removal failure must be treated as a compensation-grade error
 
-For the first slice specifically:
-- back the browsing flow with resource/config-backed fixture data
-- treat that local data as the only snapshot source until `craftalism-api` contracts are finalized
-- allow the trade GUI to open as an informational screen only
-- keep buy/sell disabled throughout this slice
-- use reopening `/market` as the only refresh behavior
+## Remaining Work
+### Repo-Local Hardening
+- broaden plugin-side tests around command entry, GUI/session transitions, stale quote refresh, and cleanup behavior
+- improve compensation handling for post-execute local inventory failures
+- add targeted post-trade snapshot refresh or live viewer updates where useful
+- reconcile docs continuously as behavior evolves
 
-### 5. Add Quote Flow
-After the API quote contract is stable:
-- quantity selection
-- debounced quote requests
-- pending-quote disabled state
-- stale-quote refresh behavior
+### Cross-Repo Coordination
+- keep aligned with `craftalism-api` as snapshot, quote, execute, and rejection semantics harden further
+- confirm any future changes to sell ownership or compensation expectations before implementing them locally
 
-Implementation notes for this repository:
-- replace the fixture-backed browse provider with a real API-backed snapshot client behind the existing local provider interface
-- keep cached snapshot browsing as degraded-mode fallback when API calls fail
-- store the latest `quoteToken` and `snapshotVersion` in the active player trade session
-- ignore async quote responses that no longer match the current item, quantity, or open screen
-- never compute authoritative totals locally from snapshot data
-
-### 6. Add Execution Flow Last
-Only after quote and execute semantics are stable:
-- buy/sell execution
-- inventory checks
-- full-inventory handling on buy
-- sell-quantity correction on sell
-- live single-slot updates for relevant viewers
-
-Execution boundary notes:
-- execute only with API-issued `quoteToken`
-- map rejection `code`, not free-form `message`
-- buy flow may proceed once quote and execute semantics are stable
-- sell flow must not assume API ownership of inventory possession validation if that responsibility remains plugin-local
-- recommended boundary for sells:
-  - `craftalism-market` validates player inventory possession locally on the main thread before sell execute
-  - `craftalism-market` reduces requested sell quantity to the quantity actually held, or stops if the player has none
-  - `craftalism-api` remains authoritative for quote validity, pricing, and economic settlement
-  - `craftalism-market` removes sold items locally only after successful API execute
-  - `craftalism-market` must log and surface any post-execute local-removal failure as a compensation-grade error
-- do not remove items before successful API settlement
-- do not move live inventory-possession authority into `craftalism-api` unless another repository explicitly owns synchronized inventory authority
-
-### 6.1 Consumer Adoption Sequence In `craftalism-market`
-Recommended local order:
-1. introduce a real market client abstraction and snapshot-fetch implementation
-2. add cache-backed degraded browsing around snapshot fetch failures
-3. keep the existing read-only browsing UX as the fallback path
-4. implement quantity selection and debounced quote flow in the trade GUI
-5. persist current `quoteToken` and `snapshotVersion` in the player session
-6. add rejection-code mapping and stale/expired quote handling
-7. implement buy execution
-8. implement sell execution with plugin-local possession validation and post-success local item removal
-
-### 6.2 Cross-Repo Workflow Between `craftalism-market` And `craftalism-api`
-1. `craftalism-api` publishes and stabilizes snapshot, quote, execute, rejection, and actor-resolution semantics
-2. `craftalism-market` consumes snapshot browsing first and keeps degraded mode explicit and read-only
-3. `craftalism-api` hardens quote and execute behavior with integration coverage
-4. `craftalism-market` adopts quote flow exactly as documented, storing and replaying `quoteToken` and `snapshotVersion`
-5. `craftalism-market` adopts execute flow exactly as documented, mapping rejection code instead of message
-6. both repositories explicitly confirm sell-boundary ownership before enabling sell execution
-7. both repositories reverify that no plugin-local pricing or backend contract drift was introduced
-
-### 7. Reverify
-Check that:
-- no main-thread blocking was introduced
-- stale mode remains read-only
-- plugin-side pricing math was not introduced
-- sessions are cleaned up on GUI close and player quit
+## Reverify Checklist
+- no main-thread blocking in API quote/execute paths
+- stale mode remains read-only when cache is used
+- plugin-side pricing math is still not introduced
+- buy delivery and sell removal stay plugin-local
 - async GUI updates only apply to the current player session state
-
-## Suggested Resume Point
-When work resumes, start with:
-1. API contract alignment in `craftalism-api`
-2. plugin-local scaffolding in this repository

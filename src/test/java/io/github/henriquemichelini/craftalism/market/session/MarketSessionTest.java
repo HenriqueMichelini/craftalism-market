@@ -26,4 +26,20 @@ class MarketSessionTest {
         assertEquals(false, updated.executingSell());
         assertTrue(updated.matchesTradeRequest("farming", "wheat", 4, updated.quoteRequestVersion()));
     }
+
+    @Test
+    void startsLiveTradeSessionsInPendingState() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false);
+
+        assertEquals(MarketQuoteStatus.PENDING, session.quoteStatus());
+        assertEquals("Refreshing quote...", session.quoteStatusMessage());
+    }
+
+    @Test
+    void startsReadOnlyTradeSessionsWithQuotesDisabled() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", true);
+
+        assertEquals(MarketQuoteStatus.DISABLED, session.quoteStatus());
+        assertEquals("Cached preview only", session.quoteStatusMessage());
+    }
 }

@@ -5,6 +5,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
+import java.util.Map;
+
 public final class MarketInventoryService {
     public int count(Player player, Material material) {
         return count(player.getInventory().getContents(), material);
@@ -19,6 +21,19 @@ public final class MarketInventoryService {
         }
 
         return removed;
+    }
+
+    public int addOrDrop(Player player, Material material, int quantity) {
+        ItemStack stack = new ItemStack(material, quantity);
+        Map<Integer, ItemStack> overflow = player.getInventory().addItem(stack);
+        int delivered = quantity;
+
+        for (ItemStack overflowStack : overflow.values()) {
+            delivered -= overflowStack.getAmount();
+            player.getWorld().dropItemNaturally(player.getLocation(), overflowStack);
+        }
+
+        return delivered;
     }
 
     int count(ItemStack[] contents, Material material) {

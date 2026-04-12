@@ -331,6 +331,17 @@ public final class MarketGuiService {
     }
 
     private void handleBuyClick(Player player, String categoryId, String itemId) {
+        MarketBrowseSnapshot snapshot = currentSnapshot(player);
+        if (snapshot == null) {
+            return;
+        }
+
+        MarketItemSnapshot item = snapshot.findItem(categoryId, itemId).orElse(null);
+        if (item == null) {
+            player.sendMessage(colorize(message("messages.unavailable-no-cache")));
+            return;
+        }
+
         MarketSession executingSession = sessionRegistry.update(player.getUniqueId(), current -> {
             if (current.screen() != MarketScreen.TRADE_VIEW
                     || current.readOnly()
@@ -344,7 +355,7 @@ public final class MarketGuiService {
                 return current;
             }
 
-            return current.withExecutionPending(MarketQuoteSide.BUY);
+                return current.withExecutionPending(MarketQuoteSide.BUY);
         }).orElse(null);
 
         if (executingSession == null
@@ -366,7 +377,7 @@ public final class MarketGuiService {
                         executingSession.buyQuoteSnapshotVersion()
                 );
                 plugin.getServer().getScheduler().runTask(plugin, () ->
-                        applyBuySuccess(player.getUniqueId(), executingSession, result)
+                        applyBuySuccess(player.getUniqueId(), item.icon(), executingSession, result)
                 );
             } catch (MarketExecuteRejectedException rejection) {
                 plugin.getServer().getScheduler().runTask(plugin, () ->
@@ -555,12 +566,20 @@ public final class MarketGuiService {
         openTrade(player, session.selectedCategoryId(), session.selectedItemId(), session);
     }
 
-    private void applyBuySuccess(UUID playerId, MarketSession expectedSession, MarketExecuteResult result) {
+    private void applyBuySuccess(UUID playerId, Material material, MarketSession expectedSession, MarketExecuteResult result) {
         Player player = plugin.getServer().getPlayer(playerId);
         if (player != null && player.isOnline()) {
-            player.sendMessage(colorize(message("messages.buy-success")
-                    .replace("{quantity}", Integer.toString(result.executedQuantity()))
-                    .replace("{total}", result.totalPrice() + " " + result.currency())));
+            int delivered = inventoryService.addOrDrop(player, material, result.executedQuantity());
+            if (delivered < result.executedQuantity()) {
+                player.sendMessage(colorize(message("messages.buy-overflow")
+                        .replace("{quantity}", Integer.toString(result.executedQuantity()))
+                        .replace("{total}", result.totalPrice() + " " + result.currency())
+                        .replace("{dropped}", Integer.toString(result.executedQuantity() - delivered))));
+            } else {
+                player.sendMessage(colorize(message("messages.buy-success")
+                        .replace("{quantity}", Integer.toString(result.executedQuantity()))
+                        .replace("{total}", result.totalPrice() + " " + result.currency())));
+            }
         }
 
         MarketSession updated = sessionRegistry.update(playerId, current -> {
