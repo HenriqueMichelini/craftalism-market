@@ -8,10 +8,12 @@ This repository is a single Gradle project rooted at the repository top level.
 
 ## Current State
 
-The repository currently provides the minimal Paper plugin scaffold:
+The repository currently provides the first read-only browsing slice:
 
-- root-level Gradle build
-- plugin entrypoint
-- `plugin.yml` packaging descriptor
+- root-level Gradle build and Paper plugin packaging
+- `/market` command entry
+- config-backed fixture data for categories and items
+- category, item, and informational trade GUIs
+- in-memory session tracking and cleanup on inventory close/player quit
 
-Market command, GUI, cache, and API orchestration behavior are intentionally not implemented yet.
+Quote flow, API integration, and trade execution are intentionally not implemented yet.

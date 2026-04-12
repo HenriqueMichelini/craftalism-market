@@ -1,0 +1,63 @@
+titles:
+  categories: "&8Craftalism Market"
+
+messages:
+  unavailable-no-cache: "&cThe market is unavailable right now. No cached data is available yet."
+  opened-read-only: "&6Market browsing is in read-only preview mode."
+  trade-disabled: "&cTrading is not available yet. This screen is informational only."
+
+market:
+  read-only: true
+  categories:
+    farming:
+      title: "&aFarming"
+      icon: WHEAT
+      description:
+        - "&7Browse staple crops and ranch goods."
+      items:
+        wheat:
+          display-name: "&fWheat"
+          material: WHEAT
+          description:
+            - "&7A common crop traded across the server."
+          buy-estimate: "4.8 coins"
+          sell-estimate: "4.1 coins"
+          variation-percent: "+2.3%"
+          stock-display: "Healthy"
+          last-updated: "Fixture preview"
+        bread:
+          display-name: "&6Bread"
+          material: BREAD
+          description:
+            - "&7Processed food item for the local market preview."
+          buy-estimate: "13.2 coins"
+          sell-estimate: "11.9 coins"
+          variation-percent: "-0.4%"
+          stock-display: "Stable"
+          last-updated: "Fixture preview"
+    mining:
+      title: "&bMining"
+      icon: IRON_PICKAXE
+      description:
+        - "&7Ore and processed metal examples."
+      items:
+        iron_ingot:
+          display-name: "&fIron Ingot"
+          material: IRON_INGOT
+          description:
+            - "&7Useful for testing a second category flow."
+          buy-estimate: "29.0 coins"
+          sell-estimate: "26.4 coins"
+          variation-percent: "+1.1%"
+          stock-display: "Tight supply"
+          last-updated: "Fixture preview"
+        diamond:
+          display-name: "&bDiamond"
+          material: DIAMOND
+          description:
+            - "&7High-value item shown in informational trade mode."
+          buy-estimate: "120.0 coins"
+          sell-estimate: "113.5 coins"
+          variation-percent: "+4.8%"
+          stock-display: "Low stock"
+          last-updated: "Fixture preview"

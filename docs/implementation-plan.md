@@ -27,7 +27,24 @@ Create the missing API-side contract documentation for:
 
 Do not implement plugin trade behavior against guessed backend semantics.
 
-### 2. Scaffold the Plugin Module Locally
+### 2. Resolved Decisions For The First Slice
+The first implementation slice is limited to repo-local scaffolding and read-only browsing.
+
+Resolved decisions:
+- if no cached snapshot data exists and the API is unavailable, do not open any GUI; send a clear unavailable message and stop
+- if cached data exists and the API is unavailable, allow category, item, and trade browsing in informational mode, but disable buy/sell and clearly mark values as cached/outdated
+- use a small local data-provider interface backed by plugin resources/config instead of a real API client for the first slice
+- store sample browsing data in plugin config/resources, not hardcoded Java constants
+- always open the main category GUI first, even when only one category exists
+- defer live viewer push updates for the first slice; refresh happens only on reopen
+- reopening `/market` is the only refresh path in the first slice; no clickable refresh control yet
+
+Constraints preserved by these decisions:
+- stale mode stays strictly read-only
+- no API transport or payload semantics are guessed locally
+- GUI, cache, and session behavior can be implemented and tested without cross-repo contract drift
+
+### 3. Scaffold the Plugin Module Locally
 In this repository, create the initial plugin-side structure for:
 - `/market` command entry
 - GUI screen classes
@@ -36,7 +53,7 @@ In this repository, create the initial plugin-side structure for:
 - async orchestration layer
 - config files for categories, icons, lore, and fallback items
 
-### 3. Implement Read-Only Browsing First
+### 4. Implement Read-Only Browsing First
 Before executable trading:
 - open the main market GUI
 - navigate categories
@@ -45,14 +62,21 @@ Before executable trading:
 - add refresh hooks
 - wire viewer/session cleanup
 
-### 4. Add Quote Flow
+For the first slice specifically:
+- back the browsing flow with resource/config-backed fixture data
+- treat that local data as the only snapshot source until `craftalism-api` contracts are finalized
+- allow the trade GUI to open as an informational screen only
+- keep buy/sell disabled throughout this slice
+- use reopening `/market` as the only refresh behavior
+
+### 5. Add Quote Flow
 After the API quote contract is stable:
 - quantity selection
 - debounced quote requests
 - pending-quote disabled state
 - stale-quote refresh behavior
 
-### 5. Add Execution Flow Last
+### 6. Add Execution Flow Last
 Only after quote and execute semantics are stable:
 - buy/sell execution
 - inventory checks
@@ -60,7 +84,7 @@ Only after quote and execute semantics are stable:
 - sell-quantity correction on sell
 - live single-slot updates for relevant viewers
 
-### 6. Reverify
+### 7. Reverify
 Check that:
 - no main-thread blocking was introduced
 - stale mode remains read-only

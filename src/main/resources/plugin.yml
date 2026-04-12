@@ -4,3 +4,7 @@ main: io.github.henriquemichelini.craftalism.market.MarketPlugin
 api-version: '1.21'
 description: Craftalism market Paper plugin client.
 website: https://github.com/HenriqueMichelini/craftalism-market
+commands:
+  market:
+    description: Open the market browsing GUI.
+    usage: /market
