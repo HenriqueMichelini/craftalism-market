@@ -22,6 +22,8 @@ class MarketSessionTest {
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
         assertEquals("19.8 coins", updated.buyQuotedTotal());
         assertEquals("sell-token", updated.sellQuoteToken());
+        assertEquals(false, updated.executingBuy());
+        assertEquals(false, updated.executingSell());
         assertTrue(updated.matchesTradeRequest("farming", "wheat", 4, updated.quoteRequestVersion()));
     }
 }

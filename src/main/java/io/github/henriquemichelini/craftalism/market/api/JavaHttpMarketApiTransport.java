@@ -40,7 +40,7 @@ public final class JavaHttpMarketApiTransport implements MarketApiTransport {
     private String send(HttpRequest request) throws IOException, InterruptedException {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 400) {
-            throw new IllegalStateException("Market API request failed with status " + response.statusCode() + ".");
+            throw new MarketApiRequestException(response.statusCode(), response.body());
         }
 
         return response.body();

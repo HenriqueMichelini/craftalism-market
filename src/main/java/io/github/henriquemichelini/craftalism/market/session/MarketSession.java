@@ -1,6 +1,7 @@
 package io.github.henriquemichelini.craftalism.market.session;
 
 import io.github.henriquemichelini.craftalism.market.api.MarketQuotePair;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 
 public record MarketSession(
         MarketScreen screen,
@@ -16,14 +17,16 @@ public record MarketSession(
         String buyQuoteToken,
         String sellQuoteToken,
         String buyQuoteSnapshotVersion,
-        String sellQuoteSnapshotVersion
+        String sellQuoteSnapshotVersion,
+        boolean executingBuy,
+        boolean executingSell
 ) {
     public static MarketSession categoryList(boolean readOnly) {
-        return new MarketSession(MarketScreen.CATEGORY_LIST, null, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null);
+        return new MarketSession(MarketScreen.CATEGORY_LIST, null, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null, false, false);
     }
 
     public static MarketSession itemList(String categoryId, boolean readOnly) {
-        return new MarketSession(MarketScreen.ITEM_LIST, categoryId, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null);
+        return new MarketSession(MarketScreen.ITEM_LIST, categoryId, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null, false, false);
     }
 
     public static MarketSession tradeView(String categoryId, String itemId, boolean readOnly) {
@@ -41,7 +44,10 @@ public record MarketSession(
                 null,
                 null,
                 null,
-                null
+                null,
+                false
+                ,
+                false
         );
     }
 
@@ -60,7 +66,10 @@ public record MarketSession(
                 null,
                 null,
                 null,
-                null
+                null,
+                false
+                ,
+                false
         );
     }
 
@@ -79,7 +88,10 @@ public record MarketSession(
                 null,
                 null,
                 null,
-                null
+                null,
+                false
+                ,
+                false
         );
     }
 
@@ -98,7 +110,51 @@ public record MarketSession(
                 pair.buy().quoteToken(),
                 pair.sell().quoteToken(),
                 pair.buy().snapshotVersion(),
-                pair.sell().snapshotVersion()
+                pair.sell().snapshotVersion(),
+                false,
+                false
+        );
+    }
+
+    public MarketSession withExecutionPending(MarketQuoteSide side) {
+        return new MarketSession(
+                screen,
+                selectedCategoryId,
+                selectedItemId,
+                readOnly,
+                quantity,
+                quoteRequestVersion,
+                MarketQuoteStatus.PENDING,
+                "Executing buy...",
+                buyQuotedTotal,
+                sellQuotedTotal,
+                buyQuoteToken,
+                sellQuoteToken,
+                buyQuoteSnapshotVersion,
+                sellQuoteSnapshotVersion,
+                side == MarketQuoteSide.BUY,
+                side == MarketQuoteSide.SELL
+        );
+    }
+
+    public MarketSession withQuoteMessage(MarketQuoteStatus status, String message) {
+        return new MarketSession(
+                screen,
+                selectedCategoryId,
+                selectedItemId,
+                readOnly,
+                quantity,
+                quoteRequestVersion,
+                status,
+                message,
+                buyQuotedTotal,
+                sellQuotedTotal,
+                buyQuoteToken,
+                sellQuoteToken,
+                buyQuoteSnapshotVersion,
+                sellQuoteSnapshotVersion,
+                false,
+                false
         );
     }
 

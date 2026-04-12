@@ -108,9 +108,14 @@ Execution boundary notes:
 - map rejection `code`, not free-form `message`
 - buy flow may proceed once quote and execute semantics are stable
 - sell flow must not assume API ownership of inventory possession validation if that responsibility remains plugin-local
-- before enabling sells, explicitly confirm whether:
-  - the plugin validates and removes items locally before execute, or
-  - another repository/service owns that possession check
+- recommended boundary for sells:
+  - `craftalism-market` validates player inventory possession locally on the main thread before sell execute
+  - `craftalism-market` reduces requested sell quantity to the quantity actually held, or stops if the player has none
+  - `craftalism-api` remains authoritative for quote validity, pricing, and economic settlement
+  - `craftalism-market` removes sold items locally only after successful API execute
+  - `craftalism-market` must log and surface any post-execute local-removal failure as a compensation-grade error
+- do not remove items before successful API settlement
+- do not move live inventory-possession authority into `craftalism-api` unless another repository explicitly owns synchronized inventory authority
 
 ### 6.1 Consumer Adoption Sequence In `craftalism-market`
 Recommended local order:
@@ -121,7 +126,7 @@ Recommended local order:
 5. persist current `quoteToken` and `snapshotVersion` in the player session
 6. add rejection-code mapping and stale/expired quote handling
 7. implement buy execution
-8. implement sell execution only after inventory-boundary ownership is confirmed
+8. implement sell execution with plugin-local possession validation and post-success local item removal
 
 ### 6.2 Cross-Repo Workflow Between `craftalism-market` And `craftalism-api`
 1. `craftalism-api` publishes and stabilizes snapshot, quote, execute, rejection, and actor-resolution semantics
