@@ -1,5 +1,6 @@
 package io.github.henriquemichelini.craftalism.market.gui;
 
+import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotProvider;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
@@ -123,10 +124,43 @@ class MarketGuiServiceTest {
         assertEquals("Refreshing quote...", refreshed.quoteStatusMessage());
     }
 
+    @Test
+    void sellRemovalFailurePlayerMessageIncludesSettlementDetails() {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+
+        String message = guiService.sellRemovalFailurePlayerMessage(
+                Material.WHEAT,
+                new MarketExecuteResult(5, "20.5", "4.1", "coins", "snapshot-v7"),
+                3
+        );
+
+        assertEquals("&cSell completed for 20.5 coins, but local removal only removed 3/5 WHEAT. Missing: 2. Contact staff.", message);
+    }
+
+    @Test
+    void sellRemovalFailureLogMessageIncludesCompensationContext() {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+        java.util.UUID playerId = java.util.UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
+        String message = guiService.sellRemovalFailureLogMessage(
+                playerId,
+                Material.WHEAT,
+                new MarketExecuteResult(5, "20.5", "4.1", "coins", "snapshot-v7"),
+                3
+        );
+
+        assertEquals(
+                "Market sell compensation issue for player aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee: item=WHEAT, executed=5, removed=3, missing=2, settled=20.5 coins, snapshotVersion=snapshot-v7",
+                message
+        );
+    }
+
     private MarketGuiService guiService(YamlConfiguration config) {
         config.set("messages.rejections.ITEM_BLOCKED", "&cThis item is currently blocked.");
         config.set("messages.rejections.ITEM_NOT_OPERATING", "&cThis item is not operating right now.");
         config.set("messages.rejections.UNKNOWN_ITEM", "&cThat item is no longer available.");
+        config.set("messages.sell-removal-failed", "&cSell completed for {total}, but local removal only removed {removed}/{executed} {item}. Missing: {missing}. Contact staff.");
+        config.set("messages.sell-removal-failed-log", "Market sell compensation issue for player {playerId}: item={item}, executed={executed}, removed={removed}, missing={missing}, settled={total}, snapshotVersion={snapshotVersion}");
 
         return new MarketGuiService(
                 null,

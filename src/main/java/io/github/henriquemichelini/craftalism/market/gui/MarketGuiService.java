@@ -606,14 +606,8 @@ public final class MarketGuiService {
 
         int removed = inventoryService.remove(player, material, result.executedQuantity());
         if (removed != result.executedQuantity()) {
-            plugin.getLogger().severe("Market sell compensation issue for player "
-                    + player.getUniqueId()
-                    + ": executed "
-                    + result.executedQuantity()
-                    + " but removed "
-                    + removed
-                    + " items locally.");
-            player.sendMessage(colorize(message("messages.sell-removal-failed")));
+            plugin.getLogger().severe(sellRemovalFailureLogMessage(playerId, material, result, removed));
+            player.sendMessage(colorize(sellRemovalFailurePlayerMessage(material, result, removed)));
         } else {
             player.sendMessage(colorize(message("messages.sell-success")
                     .replace("{quantity}", Integer.toString(result.executedQuantity()))
@@ -820,6 +814,26 @@ public final class MarketGuiService {
         }
 
         return session;
+    }
+
+    String sellRemovalFailureLogMessage(UUID playerId, Material material, MarketExecuteResult result, int removedQuantity) {
+        return message("messages.sell-removal-failed-log")
+                .replace("{playerId}", playerId.toString())
+                .replace("{item}", material.name())
+                .replace("{executed}", Integer.toString(result.executedQuantity()))
+                .replace("{removed}", Integer.toString(removedQuantity))
+                .replace("{missing}", Integer.toString(Math.max(0, result.executedQuantity() - removedQuantity)))
+                .replace("{total}", result.totalPrice() + " " + result.currency())
+                .replace("{snapshotVersion}", result.snapshotVersion());
+    }
+
+    String sellRemovalFailurePlayerMessage(Material material, MarketExecuteResult result, int removedQuantity) {
+        return message("messages.sell-removal-failed")
+                .replace("{item}", material.name())
+                .replace("{executed}", Integer.toString(result.executedQuantity()))
+                .replace("{removed}", Integer.toString(removedQuantity))
+                .replace("{missing}", Integer.toString(Math.max(0, result.executedQuantity() - removedQuantity)))
+                .replace("{total}", result.totalPrice() + " " + result.currency());
     }
 
     private void cancelPendingQuote(UUID playerId) {

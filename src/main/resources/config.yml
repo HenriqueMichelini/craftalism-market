@@ -13,7 +13,8 @@ messages:
   sell-success: "&aSold {quantity} item(s) for {total}."
   sell-no-items: "&cYou do not have that item in your inventory."
   sell-quantity-adjusted: "&eAdjusted sell quantity to {quantity} based on your inventory."
-  sell-removal-failed: "&cSell completed economically, but local item removal failed. Contact staff."
+  sell-removal-failed: "&cSell completed for {total}, but local removal only removed {removed}/{executed} {item}. Missing: {missing}. Contact staff."
+  sell-removal-failed-log: "Market sell compensation issue for player {playerId}: item={item}, executed={executed}, removed={removed}, missing={missing}, settled={total}, snapshotVersion={snapshotVersion}"
   rejections:
     STALE_QUOTE: "&eThat quote is stale. Refreshing now."
     QUOTE_EXPIRED: "&eThat quote expired. Refreshing now."
