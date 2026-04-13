@@ -45,6 +45,21 @@ class MarketBrowseSnapshotServiceTest {
     }
 
     @Test
+    void refreshSnapshotFallsBackToCachedSnapshotInReadOnlyMode() throws Exception {
+        SwitchableProvider provider = new SwitchableProvider();
+        MarketBrowseSnapshotService service = new MarketBrowseSnapshotService(provider, DIRECT_EXECUTOR);
+
+        service.loadForInitialOpen().get();
+        provider.fail = true;
+
+        MarketBrowseSnapshotLoadResult result = service.refreshSnapshot().get();
+
+        assertTrue(result.fromCache());
+        assertTrue(result.snapshot().readOnly());
+        assertFalse(service.currentSnapshot().orElseThrow().readOnly());
+    }
+
+    @Test
     void failsWithoutCacheWhenApiFetchFails() {
         MarketBrowseSnapshotService service = new MarketBrowseSnapshotService(
                 () -> { throw new IllegalStateException("boom"); },

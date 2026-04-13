@@ -97,6 +97,34 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void sessionForSnapshotDisablesTradeWhenItemIsNotOperating() {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+
+        MarketSession refreshed = guiService.sessionForSnapshot(
+                MarketSession.tradeView("farming", "wheat", false).withQuantityPending(2),
+                unavailableSnapshot(false)
+        );
+
+        assertEquals(MarketQuoteStatus.UNAVAILABLE, refreshed.quoteStatus());
+        assertEquals("&cThis item is not operating right now.", refreshed.quoteStatusMessage());
+        assertEquals(2, refreshed.quantity());
+    }
+
+    @Test
+    void sessionForSnapshotDisablesTradeWhenItemDisappearsFromRefreshedSnapshot() {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+
+        MarketSession refreshed = guiService.sessionForSnapshot(
+                MarketSession.tradeView("farming", "wheat", false).withQuantityPending(2),
+                missingItemSnapshot(false)
+        );
+
+        assertEquals(MarketQuoteStatus.UNAVAILABLE, refreshed.quoteStatus());
+        assertEquals("&cThat item is no longer available.", refreshed.quoteStatusMessage());
+        assertEquals(2, refreshed.quantity());
+    }
+
+    @Test
     void sessionForSnapshotSwitchesToReadOnlyWhenRefreshFallsBackToCache() {
         MarketGuiService guiService = guiService(new YamlConfiguration());
 
@@ -187,6 +215,22 @@ class MarketGuiServiceTest {
 
     private MarketBrowseSnapshot blockedSnapshot(boolean readOnly) {
         return snapshot(readOnly, "snapshot-v3", "Blocked");
+    }
+
+    private MarketBrowseSnapshot unavailableSnapshot(boolean readOnly) {
+        return snapshot(readOnly, "snapshot-v4", "Unavailable");
+    }
+
+    private MarketBrowseSnapshot missingItemSnapshot(boolean readOnly) {
+        return new MarketBrowseSnapshot("snapshot-v5", List.of(
+                new MarketCategorySnapshot(
+                        "farming",
+                        "Farming",
+                        Material.WHEAT,
+                        List.of(),
+                        List.of()
+                )
+        ), readOnly);
     }
 
     private MarketBrowseSnapshot snapshot(boolean readOnly, String snapshotVersion, String stockDisplay) {

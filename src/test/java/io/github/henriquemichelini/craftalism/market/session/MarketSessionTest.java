@@ -6,6 +6,7 @@ import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MarketSessionTest {
@@ -41,5 +42,49 @@ class MarketSessionTest {
 
         assertEquals(MarketQuoteStatus.DISABLED, session.quoteStatus());
         assertEquals("Cached preview only", session.quoteStatusMessage());
+    }
+
+    @Test
+    void quantityChangeSupersedesExistingQuoteState() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 1, "4.8", "4.8", "coins", "buy-token", "snapshot-buy"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 1, "4.1", "4.1", "coins", "sell-token", "snapshot-sell")
+                ));
+
+        MarketSession updated = session.withQuantityPending(6);
+
+        assertEquals(6, updated.quantity());
+        assertEquals(session.quoteRequestVersion() + 1, updated.quoteRequestVersion());
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuotedTotal());
+        assertEquals(null, updated.sellQuoteToken());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void readOnlyPreviewPreservesSelectionButDisablesTrading() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false).withQuantityPending(3);
+
+        MarketSession updated = session.asReadOnlyPreview();
+
+        assertTrue(updated.readOnly());
+        assertEquals(3, updated.quantity());
+        assertEquals(MarketQuoteStatus.DISABLED, updated.quoteStatus());
+        assertEquals("Cached preview only", updated.quoteStatusMessage());
+    }
+
+    @Test
+    void liveQuotePendingLeavesReadOnlyModeAndRequestsNewQuote() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", true);
+
+        MarketSession updated = session.asLiveQuotePending();
+
+        assertFalse(updated.readOnly());
+        assertEquals(session.quoteRequestVersion() + 1, updated.quoteRequestVersion());
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
     }
 }
