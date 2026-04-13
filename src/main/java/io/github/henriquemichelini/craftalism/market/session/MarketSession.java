@@ -95,6 +95,48 @@ public record MarketSession(
         );
     }
 
+    public MarketSession asReadOnlyPreview() {
+        return new MarketSession(
+                screen,
+                selectedCategoryId,
+                selectedItemId,
+                true,
+                quantity,
+                quoteRequestVersion,
+                MarketQuoteStatus.DISABLED,
+                "Cached preview only",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false
+        );
+    }
+
+    public MarketSession asLiveQuotePending() {
+        return new MarketSession(
+                screen,
+                selectedCategoryId,
+                selectedItemId,
+                false,
+                quantity,
+                quoteRequestVersion + 1,
+                MarketQuoteStatus.PENDING,
+                "Refreshing quote...",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false
+        );
+    }
+
     public MarketSession withQuotePair(MarketQuotePair pair) {
         return new MarketSession(
                 screen,

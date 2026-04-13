@@ -8,6 +8,7 @@ import io.github.henriquemichelini.craftalism.market.api.MarketQuotePair;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot;
+import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotLoadResult;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.browse.MarketCategorySnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketItemSnapshot;
@@ -240,6 +241,7 @@ public final class MarketGuiService {
         MarketSession session = existingSession != null
                 ? existingSession
                 : MarketSession.tradeView(categoryId, itemId, snapshot.readOnly());
+        session = sessionForSnapshot(session, snapshot);
         renderTrade(player, snapshot, category, item, session);
         sessionRegistry.put(player.getUniqueId(), session);
 
@@ -592,6 +594,7 @@ public final class MarketGuiService {
 
         if (updated != null) {
             rerenderTradeIfVisible(playerId, updated);
+            refreshTradeSnapshot(playerId, updated);
         }
     }
 
@@ -627,6 +630,7 @@ public final class MarketGuiService {
 
         if (updated != null) {
             rerenderTradeIfVisible(playerId, updated);
+            refreshTradeSnapshot(playerId, updated);
         }
     }
 
@@ -648,6 +652,7 @@ public final class MarketGuiService {
 
             if (updated != null) {
                 rerenderTradeIfVisible(playerId, updated);
+                refreshTradeSnapshot(playerId, updated);
             }
             return;
         }
@@ -707,6 +712,7 @@ public final class MarketGuiService {
 
             if (updated != null) {
                 rerenderTradeIfVisible(playerId, updated);
+                refreshTradeSnapshot(playerId, updated);
             }
             return;
         }
@@ -748,6 +754,36 @@ public final class MarketGuiService {
         }
     }
 
+    private void refreshTradeSnapshot(UUID playerId, MarketSession expectedSession) {
+        snapshotService.refreshSnapshot().whenComplete((result, error) ->
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        applyTradeSnapshotRefresh(playerId, expectedSession, result, error))
+        );
+    }
+
+    private void applyTradeSnapshotRefresh(
+            UUID playerId,
+            MarketSession expectedSession,
+            MarketBrowseSnapshotLoadResult result,
+            Throwable error
+    ) {
+        MarketSession updated = sessionRegistry.update(playerId, current -> {
+            if (!sameTradeSession(current, expectedSession)) {
+                return current;
+            }
+
+            if (error != null) {
+                return current.withQuoteUnavailable(message("messages.quote-unavailable"));
+            }
+
+            return sessionForSnapshot(current, result.snapshot());
+        }).orElse(null);
+
+        if (updated != null) {
+            rerenderTradeIfVisible(playerId, updated);
+        }
+    }
+
     private boolean sameTradeSession(MarketSession current, MarketSession expectedSession) {
         return current.screen() == MarketScreen.TRADE_VIEW
                 && current.selectedCategoryId() != null
@@ -755,6 +791,35 @@ public final class MarketGuiService {
                 && current.selectedItemId() != null
                 && current.selectedItemId().equals(expectedSession.selectedItemId())
                 && current.quantity() == expectedSession.quantity();
+    }
+
+    MarketSession sessionForSnapshot(MarketSession session, MarketBrowseSnapshot snapshot) {
+        if (session.screen() != MarketScreen.TRADE_VIEW) {
+            return session;
+        }
+
+        if (snapshot.readOnly()) {
+            return session.asReadOnlyPreview();
+        }
+
+        MarketItemSnapshot item = snapshot.findItem(session.selectedCategoryId(), session.selectedItemId()).orElse(null);
+        if (item == null) {
+            return session.withQuoteUnavailable(rejectionMessage("UNKNOWN_ITEM"));
+        }
+
+        if ("Blocked".equals(item.stockDisplay())) {
+            return session.withQuoteUnavailable(rejectionMessage("ITEM_BLOCKED"));
+        }
+
+        if ("Unavailable".equals(item.stockDisplay())) {
+            return session.withQuoteUnavailable(rejectionMessage("ITEM_NOT_OPERATING"));
+        }
+
+        if (session.readOnly() || session.quoteStatus() == MarketQuoteStatus.DISABLED) {
+            return session.asLiveQuotePending();
+        }
+
+        return session;
     }
 
     private void cancelPendingQuote(UUID playerId) {

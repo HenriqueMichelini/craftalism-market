@@ -26,3 +26,5 @@ replay_pid*
 # Gradle project state
 .gradle/
 build/
+!gradle/wrapper/gradle-wrapper.jar
+bin/

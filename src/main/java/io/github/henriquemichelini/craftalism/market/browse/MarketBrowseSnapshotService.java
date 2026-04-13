@@ -16,6 +16,14 @@ public final class MarketBrowseSnapshotService {
     }
 
     public CompletableFuture<MarketBrowseSnapshotLoadResult> loadForInitialOpen() {
+        return loadSnapshotWithCacheFallback();
+    }
+
+    public CompletableFuture<MarketBrowseSnapshotLoadResult> refreshSnapshot() {
+        return loadSnapshotWithCacheFallback();
+    }
+
+    private CompletableFuture<MarketBrowseSnapshotLoadResult> loadSnapshotWithCacheFallback() {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 MarketBrowseSnapshot liveSnapshot = liveSnapshotProvider.loadSnapshot().withReadOnly(false);
