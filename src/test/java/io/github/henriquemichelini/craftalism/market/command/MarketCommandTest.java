@@ -2,6 +2,7 @@ package io.github.henriquemichelini.craftalism.market.command;
 
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.gui.MarketGuiService;
+import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.Plugin;
@@ -24,7 +25,12 @@ class MarketCommandTest {
                 new Class[]{CommandSender.class},
                 (proxy, method, args) -> {
                     if ("sendMessage".equals(method.getName())) {
-                        messages.add((String) args[0]);
+                        Object payload = args[0];
+                        if (payload instanceof String text) {
+                            messages.add(text);
+                        } else if (payload instanceof Component component) {
+                            messages.add(component.toString());
+                        }
                         return null;
                     }
 
