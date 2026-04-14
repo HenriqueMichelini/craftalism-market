@@ -27,8 +27,12 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -521,6 +525,146 @@ class MarketGuiServiceTest {
         assertFalse(updated.executingSell());
     }
 
+    @Test
+    void onlineSellSuccessRemovesItemsAndReturnsSessionToPendingRefresh() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        inventoryAccess.setQuantity(Material.WHEAT, 4);
+        MarketBrowseSnapshotService snapshotService = new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
+        Player onlinePlayer = fakeOnlinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(onlinePlayer),
+                snapshotService,
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                registry,
+                new YamlConfiguration()
+        );
+        MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(4)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 4, "19.2", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 4, "16.4", "4.1", "coins", "sell-token", "snapshot-v1")
+                ))
+                .withExecutionPending(MarketQuoteSide.SELL);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applySellSuccess",
+                UUID.class,
+                Material.class,
+                MarketSession.class,
+                MarketExecuteResult.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+                guiService,
+                playerId,
+                Material.WHEAT,
+                executingSession,
+                new MarketExecuteResult(4, "16.4", "4.1", "coins", "snapshot-v2")
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(4, updated.quantity());
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void onlineSellSuccessWithPartialLocalRemovalStillReturnsSessionToPendingRefresh() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("messages.sell-removal-failed", "&cSell completed for {total}, but local removal only removed {removed}/{executed} {item}. Missing: {missing}. Contact staff.");
+        config.set("messages.sell-removal-failed-log", "Market sell compensation issue for player {playerId}: item={item}, executed={executed}, removed={removed}, missing={missing}, settled={total}, snapshotVersion={snapshotVersion}");
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        inventoryAccess.setQuantity(Material.WHEAT, 2);
+        MarketBrowseSnapshotService snapshotService = new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
+        List<String> playerMessages = new ArrayList<>();
+        Player onlinePlayer = fakeOnlinePlayer(playerId, playerMessages);
+        TestLogger testLogger = new TestLogger();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(onlinePlayer, testLogger.logger()),
+                snapshotService,
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                registry,
+                config
+        );
+        MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(4)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 4, "19.2", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 4, "16.4", "4.1", "coins", "sell-token", "snapshot-v1")
+                ))
+                .withExecutionPending(MarketQuoteSide.SELL);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applySellSuccess",
+                UUID.class,
+                Material.class,
+                MarketSession.class,
+                MarketExecuteResult.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+                guiService,
+                playerId,
+                Material.WHEAT,
+                executingSession,
+                new MarketExecuteResult(4, "16.4", "4.1", "coins", "snapshot-v2")
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(4, updated.quantity());
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+        assertTrue(playerMessages.stream().anyMatch(message -> message.contains("local removal only removed 2/4 WHEAT")));
+        assertTrue(testLogger.messages(Level.SEVERE).stream().anyMatch(message -> message.contains("removed=2, missing=2")));
+    }
+
+    @Test
+    void deferredSettlementQueuesWarningLog() {
+        UUID playerId = UUID.randomUUID();
+        TestLogger testLogger = new TestLogger();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakeOfflinePlayer(playerId), testLogger.logger()),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                new MarketSessionRegistry(),
+                new YamlConfiguration()
+        );
+
+        guiService.queueDeferredSettlement(
+                playerId,
+                new MarketGuiService.DeferredSettlement(
+                        MarketQuoteSide.SELL,
+                        Material.WHEAT,
+                        new MarketExecuteResult(3, "12.3", "4.1", "coins", "snapshot-v7")
+                )
+        );
+
+        assertTrue(testLogger.messages(Level.WARNING).stream().anyMatch(message ->
+                message.contains("Deferred market sell settlement for player " + playerId)
+        ));
+    }
+
     private MarketGuiService guiService(YamlConfiguration config) {
         return guiService(config, new MarketInventoryService());
     }
@@ -630,6 +774,10 @@ class MarketGuiServiceTest {
     }
 
     private Player fakeOnlinePlayer(UUID playerId) {
+        return fakeOnlinePlayer(playerId, null);
+    }
+
+    private Player fakeOnlinePlayer(UUID playerId, List<String> messages) {
         Inventory topInventory = (Inventory) Proxy.newProxyInstance(
                 Inventory.class.getClassLoader(),
                 new Class[]{Inventory.class},
@@ -654,13 +802,22 @@ class MarketGuiServiceTest {
                     case "getUniqueId" -> playerId;
                     case "isOnline" -> true;
                     case "getOpenInventory" -> openInventory;
-                    case "sendMessage" -> null;
+                    case "sendMessage" -> {
+                        if (messages != null && args != null && args.length > 0) {
+                            messages.add(String.valueOf(args[0]));
+                        }
+                        yield null;
+                    }
                     default -> primitiveDefault(method.getReturnType());
                 }
         );
     }
 
     private Plugin fakePlugin(Player player) {
+        return fakePlugin(player, Logger.getLogger("MarketGuiServiceTest"));
+    }
+
+    private Plugin fakePlugin(Player player, Logger logger) {
         BukkitScheduler scheduler = (BukkitScheduler) Proxy.newProxyInstance(
                 BukkitScheduler.class.getClassLoader(),
                 new Class[]{BukkitScheduler.class},
@@ -687,7 +844,7 @@ class MarketGuiServiceTest {
                 new Class[]{Plugin.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getServer" -> server;
-                    case "getLogger" -> Logger.getLogger("MarketGuiServiceTest");
+                    case "getLogger" -> logger;
                     default -> primitiveDefault(method.getReturnType());
                 }
         );
@@ -748,6 +905,41 @@ class MarketGuiServiceTest {
 
         private int quantity(Material material) {
             return quantities.getOrDefault(material, 0);
+        }
+    }
+
+    private static final class TestLogger {
+        private final Logger logger = Logger.getAnonymousLogger();
+        private final List<LogRecord> records = new ArrayList<>();
+
+        private TestLogger() {
+            logger.setUseParentHandlers(false);
+            for (Handler handler : logger.getHandlers()) {
+                logger.removeHandler(handler);
+            }
+            logger.addHandler(new Handler() {
+                @Override
+                public void publish(LogRecord record) {
+                    records.add(record);
+                }
+
+                @Override
+                public void flush() {}
+
+                @Override
+                public void close() {}
+            });
+        }
+
+        private Logger logger() {
+            return logger;
+        }
+
+        private List<String> messages(Level level) {
+            return records.stream()
+                    .filter(record -> record.getLevel().equals(level))
+                    .map(LogRecord::getMessage)
+                    .toList();
         }
     }
 }
