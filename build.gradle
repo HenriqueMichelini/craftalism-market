@@ -33,6 +33,7 @@ java {
 
 tasks.named('test') {
     useJUnitPlatform()
+    maxParallelForks = 2
 }
 
 tasks.named('assemble') {
