@@ -295,6 +295,90 @@ class MarketGuiServiceTest {
         }
     }
 
+    @Test
+    void quantityAdjustmentIsIgnoredWhileTradeExecutionIsInFlight() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        Player player = fakePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+                null,
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                registry,
+                new YamlConfiguration()
+        );
+        MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(4)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 4, "19.2", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 4, "16.4", "4.1", "coins", "sell-token", "snapshot-v1")
+                ))
+                .withExecutionPending(MarketQuoteSide.BUY);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "adjustTradeQuantity",
+                Player.class,
+                String.class,
+                String.class,
+                int.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, player, "farming", "wheat", 1);
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(executingSession, updated);
+    }
+
+    @Test
+    void sellQuantityAdjustmentPreservesTradeSessionAndRequestsFreshQuote() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("messages.sell-quantity-adjusted", "&eAdjusted sell quantity to {quantity} based on your inventory.");
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        inventoryAccess.setQuantity(Material.WHEAT, 2);
+        MarketBrowseSnapshotService snapshotService = new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
+        Player offlinePlayer = fakeOfflinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(offlinePlayer),
+                snapshotService,
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                registry,
+                config
+        );
+        MarketSession availableSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(5)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 5, "24.0", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 5, "20.5", "4.1", "coins", "sell-token", "snapshot-v1")
+                ));
+        registry.put(playerId, availableSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "handleSellClick",
+                Player.class,
+                String.class,
+                String.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, fakePlayer(playerId), "farming", "wheat");
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(2, updated.quantity());
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertEquals(availableSession.quoteRequestVersion() + 1, updated.quoteRequestVersion());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
     private MarketGuiService guiService(YamlConfiguration config) {
         return guiService(config, new MarketInventoryService());
     }

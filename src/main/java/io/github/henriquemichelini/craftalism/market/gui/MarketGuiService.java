@@ -439,12 +439,28 @@ public final class MarketGuiService {
         String itemId,
         int delta
     ) {
+        MarketSession currentSession = sessionRegistry
+            .get(player.getUniqueId())
+            .orElse(null);
+        if (
+            currentSession == null ||
+            currentSession.screen() != MarketScreen.TRADE_VIEW ||
+            !categoryId.equals(currentSession.selectedCategoryId()) ||
+            !itemId.equals(currentSession.selectedItemId()) ||
+            currentSession.executingBuy() ||
+            currentSession.executingSell()
+        ) {
+            return;
+        }
+
         MarketSession updatedSession = sessionRegistry
             .update(player.getUniqueId(), session -> {
                 if (
                     session.screen() != MarketScreen.TRADE_VIEW ||
                     !categoryId.equals(session.selectedCategoryId()) ||
-                    !itemId.equals(session.selectedItemId())
+                    !itemId.equals(session.selectedItemId()) ||
+                    session.executingBuy() ||
+                    session.executingSell()
                 ) {
                     return session;
                 }
