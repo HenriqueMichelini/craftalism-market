@@ -16,32 +16,28 @@
 
 ## Confirmed Next Priority
 
-The next step is hardening, not another new feature slice.
+The next step is still hardening, not another new feature slice.
+
+Targeted post-trade refresh is already implemented in the plugin, including current-player trade-screen refresh after successful buys and sells.
 
 Highest-value next implementation:
-- add targeted post-trade refresh behavior so successful trades refresh the affected item/category snapshot instead of waiting for the next normal cycle
+- harden post-settlement compensation and reconnect behavior when trade execution succeeds while the player is offline or local inventory application fails
 
 Why this comes next:
-- it improves correctness after buy/sell success
-- it improves player-facing UX immediately after trade settlement
-- it is already consistent with the market module design
-- it does not require redefining backend ownership
+- it closes the remaining correctness gap after authoritative trade settlement
+- it keeps plugin-local delivery and removal behavior aligned with repo ownership
+- it avoids redefining API-side trade authority or quote semantics
 
 ## Recommended Implementation Order
 
-### 1. Post-Trade Refresh
-Implement immediate repo-local refresh behavior after successful buy/sell execution.
+### 1. Compensation Hardening
+Strengthen the plugin-local settlement path for rare disconnect and partial-failure cases.
 
-Target behavior:
-- after a successful trade, refresh the affected item/category snapshot
-- update local cached snapshot state
-- re-render the current player trade screen with the refreshed snapshot
-- preserve selected quantity where possible
-- if the item becomes blocked or unavailable, disable actions immediately
-
-Preferred scope:
-- start with targeted refresh for the current player only
-- defer broader live-viewer fanout until the refresh path is stable
+Priority areas:
+- buy execution succeeds while the player is offline before local delivery runs
+- sell execution succeeds while the player is offline before local removal runs
+- operator-visible logging when local post-settlement application is deferred or incomplete
+- tests for reconnect-time settlement application
 
 ### 2. GUI/Session Hardening
 Add stronger coverage around current plugin-local behavior.
@@ -55,13 +51,12 @@ Priority areas:
 - cleanup on inventory close and player quit
 - degraded-mode behavior when cached data exists and the API is unavailable
 
-### 3. Compensation Hardening
-Improve handling of rare partial-failure paths.
+### 3. Viewer Refresh Expansion
+Only after the settlement path is stable, consider broader live-viewer fanout.
 
 Priority areas:
-- API sell succeeds but local item removal removes fewer items than expected
-- clearer operator logging for compensation-grade failures
-- clearer player-facing messaging for local post-settlement failures
+- refreshing other open viewers of the same item/category after a successful trade
+- keeping fanout bounded to plugin-local UI concerns only
 
 ## Explicitly Not Next
 
@@ -90,6 +85,6 @@ This repository consumes and must not redefine:
 ## Suggested Resume Point
 
 When implementation resumes, start with:
-1. add targeted post-trade snapshot refresh for the current player
-2. add tests around that refresh path and stale-quote handling
-3. harden compensation logging and messages for post-settlement local failures
+1. add or refine tests around reconnect-time settlement and stale-quote handling
+2. harden any remaining compensation logging and post-settlement failure messaging
+3. evaluate whether bounded live-viewer fanout is worth adding after the settlement path is stable
