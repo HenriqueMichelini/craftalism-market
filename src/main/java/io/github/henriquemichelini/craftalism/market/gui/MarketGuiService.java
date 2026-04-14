@@ -12,7 +12,7 @@ import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.browse.MarketCategorySnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketItemSnapshot;
-import io.github.henriquemichelini.craftalism.market.inventory.MarketInventoryService;
+import io.github.henriquemichelini.craftalism.market.inventory.MarketInventoryAccess;
 import io.github.henriquemichelini.craftalism.market.session.MarketQuoteStatus;
 import io.github.henriquemichelini.craftalism.market.session.MarketScreen;
 import io.github.henriquemichelini.craftalism.market.session.MarketSession;
@@ -53,10 +53,12 @@ public final class MarketGuiService {
     private final MarketBrowseSnapshotService snapshotService;
     private final MarketQuoteClient quoteClient;
     private final MarketExecuteClient executeClient;
-    private final MarketInventoryService inventoryService;
+    private final MarketInventoryAccess inventoryService;
     private final MarketSessionRegistry sessionRegistry;
     private final FileConfiguration config;
     private final Map<UUID, BukkitTask> pendingQuoteTasks =
+        new ConcurrentHashMap<>();
+    private final Map<UUID, List<DeferredSettlement>> deferredSettlements =
         new ConcurrentHashMap<>();
 
     public MarketGuiService(
@@ -64,7 +66,7 @@ public final class MarketGuiService {
         MarketBrowseSnapshotService snapshotService,
         MarketQuoteClient quoteClient,
         MarketExecuteClient executeClient,
-        MarketInventoryService inventoryService,
+        MarketInventoryAccess inventoryService,
         MarketSessionRegistry sessionRegistry,
         FileConfiguration config
     ) {
@@ -394,6 +396,10 @@ public final class MarketGuiService {
     public void closeSession(UUID playerId) {
         cancelPendingQuote(playerId);
         sessionRegistry.remove(playerId);
+    }
+
+    public void handlePlayerJoin(Player player) {
+        applyDeferredSettlements(player);
     }
 
     private Inventory createInventory(
@@ -854,44 +860,12 @@ public final class MarketGuiService {
     ) {
         Player player = plugin.getServer().getPlayer(playerId);
         if (player != null && player.isOnline()) {
-            int delivered = inventoryService.addOrDrop(
-                player,
-                material,
-                result.executedQuantity()
+            applyBuySettlement(player, material, result);
+        } else {
+            queueDeferredSettlement(
+                playerId,
+                new DeferredSettlement(MarketQuoteSide.BUY, material, result)
             );
-            if (delivered < result.executedQuantity()) {
-                sendMessage(
-                    player,
-                    message("messages.buy-overflow")
-                        .replace(
-                            "{quantity}",
-                            Integer.toString(result.executedQuantity())
-                        )
-                        .replace(
-                            "{total}",
-                            result.totalPrice() + " " + result.currency()
-                        )
-                        .replace(
-                            "{dropped}",
-                            Integer.toString(
-                                result.executedQuantity() - delivered
-                            )
-                        )
-                );
-            } else {
-                sendMessage(
-                    player,
-                    message("messages.buy-success")
-                        .replace(
-                            "{quantity}",
-                            Integer.toString(result.executedQuantity())
-                        )
-                        .replace(
-                            "{total}",
-                            result.totalPrice() + " " + result.currency()
-                        )
-                );
-            }
         }
 
         MarketSession updated = sessionRegistry
@@ -918,43 +892,14 @@ public final class MarketGuiService {
     ) {
         Player player = plugin.getServer().getPlayer(playerId);
         if (player == null || !player.isOnline()) {
+            queueDeferredSettlement(
+                playerId,
+                new DeferredSettlement(MarketQuoteSide.SELL, material, result)
+            );
             return;
         }
 
-        int removed = inventoryService.remove(
-            player,
-            material,
-            result.executedQuantity()
-        );
-        if (removed != result.executedQuantity()) {
-            plugin
-                .getLogger()
-                .severe(
-                    sellRemovalFailureLogMessage(
-                        playerId,
-                        material,
-                        result,
-                        removed
-                    )
-                );
-            sendMessage(
-                player,
-                sellRemovalFailurePlayerMessage(material, result, removed)
-            );
-        } else {
-            sendMessage(
-                player,
-                message("messages.sell-success")
-                    .replace(
-                        "{quantity}",
-                        Integer.toString(result.executedQuantity())
-                    )
-                    .replace(
-                        "{total}",
-                        result.totalPrice() + " " + result.currency()
-                    )
-            );
-        }
+        applySellSettlement(player, material, result);
 
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
@@ -1285,6 +1230,135 @@ public final class MarketGuiService {
         }
     }
 
+    void queueDeferredSettlement(
+        UUID playerId,
+        DeferredSettlement settlement
+    ) {
+        deferredSettlements.compute(playerId, (ignored, current) -> {
+            List<DeferredSettlement> updated = current == null
+                ? new ArrayList<>()
+                : new ArrayList<>(current);
+            updated.add(settlement);
+            return List.copyOf(updated);
+        });
+
+        if (plugin != null) {
+            plugin
+                .getLogger()
+                .warning(
+                    "Deferred market " +
+                    settlement.side().name().toLowerCase() +
+                    " settlement for player " +
+                    playerId +
+                    " until they reconnect."
+                );
+        }
+    }
+
+    int deferredSettlementCount(UUID playerId) {
+        return deferredSettlements.getOrDefault(playerId, List.of()).size();
+    }
+
+    private void applyDeferredSettlements(Player player) {
+        List<DeferredSettlement> settlements = deferredSettlements.remove(
+            player.getUniqueId()
+        );
+        if (settlements == null || settlements.isEmpty()) {
+            return;
+        }
+
+        for (DeferredSettlement settlement : settlements) {
+            if (settlement.side() == MarketQuoteSide.BUY) {
+                applyBuySettlement(player, settlement.material(), settlement.result());
+                continue;
+            }
+
+            applySellSettlement(player, settlement.material(), settlement.result());
+        }
+    }
+
+    private void applyBuySettlement(
+        Player player,
+        Material material,
+        MarketExecuteResult result
+    ) {
+        int delivered = inventoryService.addOrDrop(
+            player,
+            material,
+            result.executedQuantity()
+        );
+        if (delivered < result.executedQuantity()) {
+            sendMessage(
+                player,
+                message("messages.buy-overflow")
+                    .replace(
+                        "{quantity}",
+                        Integer.toString(result.executedQuantity())
+                    )
+                    .replace(
+                        "{total}",
+                        result.totalPrice() + " " + result.currency()
+                    )
+                    .replace(
+                        "{dropped}",
+                        Integer.toString(result.executedQuantity() - delivered)
+                    )
+            );
+            return;
+        }
+
+        sendMessage(
+            player,
+            message("messages.buy-success")
+                .replace(
+                    "{quantity}",
+                    Integer.toString(result.executedQuantity())
+                )
+                .replace("{total}", result.totalPrice() + " " + result.currency())
+        );
+    }
+
+    private void applySellSettlement(
+        Player player,
+        Material material,
+        MarketExecuteResult result
+    ) {
+        int removed = inventoryService.remove(
+            player,
+            material,
+            result.executedQuantity()
+        );
+        if (removed != result.executedQuantity()) {
+            if (plugin != null) {
+                plugin
+                    .getLogger()
+                    .severe(
+                        sellRemovalFailureLogMessage(
+                            player.getUniqueId(),
+                            material,
+                            result,
+                            removed
+                        )
+                    );
+            }
+            sendMessage(
+                player,
+                sellRemovalFailurePlayerMessage(material, result, removed)
+            );
+            return;
+        }
+
+        sendMessage(
+            player,
+            message("messages.sell-success")
+                .replace(
+                    "{quantity}",
+                    Integer.toString(result.executedQuantity())
+                )
+                .replace("{total}", result.totalPrice() + " " + result.currency())
+        );
+    }
+
     private int rowsFor(int itemCount) {
         int itemRows = Math.max(1, (int) Math.ceil(itemCount / 9.0d));
         return Math.min(6, Math.max(3, itemRows + 1));
@@ -1493,4 +1567,10 @@ public final class MarketGuiService {
     private List<Component> render(List<String> lines) {
         return lines.stream().map(this::render).toList();
     }
+
+    record DeferredSettlement(
+        MarketQuoteSide side,
+        Material material,
+        MarketExecuteResult result
+    ) {}
 }

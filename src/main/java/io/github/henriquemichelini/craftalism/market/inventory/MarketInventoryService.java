@@ -7,7 +7,7 @@ import org.bukkit.inventory.PlayerInventory;
 
 import java.util.Map;
 
-public final class MarketInventoryService {
+public final class MarketInventoryService implements MarketInventoryAccess {
     public int count(Player player, Material material) {
         return count(player.getInventory().getContents(), material);
     }
