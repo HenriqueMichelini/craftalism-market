@@ -167,7 +167,7 @@ public record MarketSession(
                 quantity,
                 quoteRequestVersion,
                 MarketQuoteStatus.PENDING,
-                "Executing buy...",
+                side == MarketQuoteSide.BUY ? "Executing buy..." : "Executing sell...",
                 buyQuotedTotal,
                 sellQuotedTotal,
                 buyQuoteToken,

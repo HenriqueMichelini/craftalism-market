@@ -1,6 +1,9 @@
 package io.github.henriquemichelini.craftalism.market.gui;
 
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
+import io.github.henriquemichelini.craftalism.market.api.MarketExecuteRejectedException;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuotePair;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuoteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotProvider;
@@ -13,13 +16,18 @@ import io.github.henriquemichelini.craftalism.market.session.MarketQuoteStatus;
 import io.github.henriquemichelini.craftalism.market.session.MarketSession;
 import io.github.henriquemichelini.craftalism.market.session.MarketSessionRegistry;
 import org.bukkit.Material;
+import org.bukkit.Server;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -233,6 +241,60 @@ class MarketGuiServiceTest {
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
     }
 
+    @Test
+    void staleAndExpiredBuyRejectionsRequeueFreshQuotes() throws Exception {
+        for (String code : List.of("STALE_QUOTE", "QUOTE_EXPIRED")) {
+            YamlConfiguration config = new YamlConfiguration();
+            config.set("messages.rejections.STALE_QUOTE", "&eThat quote is stale. Refreshing now.");
+            config.set("messages.rejections.QUOTE_EXPIRED", "&eThat quote expired. Refreshing now.");
+
+            MarketSessionRegistry registry = new MarketSessionRegistry();
+            UUID playerId = UUID.randomUUID();
+            Player player = fakeOfflinePlayer(playerId);
+            Plugin plugin = fakePlugin(player);
+            MarketGuiService guiService = new MarketGuiService(
+                    plugin,
+                    new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                    (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                    (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                    new FakeInventoryAccess(),
+                    registry,
+                    config
+            );
+
+            MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                    .withQuantityPending(5)
+                    .withQuotePair(new MarketQuotePair(
+                            new MarketQuoteResult(MarketQuoteSide.BUY, 5, "24.0", "4.8", "coins", "buy-token", "snapshot-v1"),
+                            new MarketQuoteResult(MarketQuoteSide.SELL, 5, "20.5", "4.1", "coins", "sell-token", "snapshot-v1")
+                    ))
+                    .withExecutionPending(MarketQuoteSide.BUY);
+            registry.put(playerId, executingSession);
+
+            Method method = MarketGuiService.class.getDeclaredMethod(
+                    "applyBuyRejection",
+                    UUID.class,
+                    MarketSession.class,
+                    MarketExecuteRejectedException.class
+            );
+            method.setAccessible(true);
+            method.invoke(
+                    guiService,
+                    playerId,
+                    executingSession,
+                    new MarketExecuteRejectedException(code, "Rejected", "snapshot-v2")
+            );
+
+            MarketSession updated = registry.get(playerId).orElseThrow();
+            assertEquals(5, updated.quantity());
+            assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+            assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+            assertEquals(executingSession.quoteRequestVersion() + 1, updated.quoteRequestVersion());
+            assertFalse(updated.executingBuy());
+            assertFalse(updated.executingSell());
+        }
+    }
+
     private MarketGuiService guiService(YamlConfiguration config) {
         return guiService(config, new MarketInventoryService());
     }
@@ -323,6 +385,52 @@ class MarketGuiServiceTest {
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getUniqueId" -> playerId;
                     case "sendMessage" -> null;
+                    default -> primitiveDefault(method.getReturnType());
+                }
+        );
+    }
+
+    private Player fakeOfflinePlayer(UUID playerId) {
+        return (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class[]{Player.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getUniqueId" -> playerId;
+                    case "isOnline" -> false;
+                    case "sendMessage" -> null;
+                    default -> primitiveDefault(method.getReturnType());
+                }
+        );
+    }
+
+    private Plugin fakePlugin(Player player) {
+        BukkitScheduler scheduler = (BukkitScheduler) Proxy.newProxyInstance(
+                BukkitScheduler.class.getClassLoader(),
+                new Class[]{BukkitScheduler.class},
+                (proxy, method, args) -> {
+                    if ("runTask".equals(method.getName())) {
+                        ((Runnable) args[1]).run();
+                        return null;
+                    }
+                    return primitiveDefault(method.getReturnType());
+                }
+        );
+        Server server = (Server) Proxy.newProxyInstance(
+                Server.class.getClassLoader(),
+                new Class[]{Server.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getPlayer" -> player;
+                    case "getScheduler" -> scheduler;
+                    default -> primitiveDefault(method.getReturnType());
+                }
+        );
+
+        return (Plugin) Proxy.newProxyInstance(
+                Plugin.class.getClassLoader(),
+                new Class[]{Plugin.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getServer" -> server;
+                    case "getLogger" -> Logger.getLogger("MarketGuiServiceTest");
                     default -> primitiveDefault(method.getReturnType());
                 }
         );

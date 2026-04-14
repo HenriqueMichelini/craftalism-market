@@ -87,4 +87,40 @@ class MarketSessionTest {
         assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
         assertEquals("Refreshing quote...", updated.quoteStatusMessage());
     }
+
+    @Test
+    void sellExecutionPendingUsesSellMessageAndFlag() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 2, "9.6", "4.8", "coins", "buy-token", "snapshot-buy"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 2, "8.2", "4.1", "coins", "sell-token", "snapshot-sell")
+                ));
+
+        MarketSession updated = session.withExecutionPending(MarketQuoteSide.SELL);
+
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Executing sell...", updated.quoteStatusMessage());
+        assertFalse(updated.executingBuy());
+        assertTrue(updated.executingSell());
+    }
+
+    @Test
+    void latestQuantityChangeInvalidatesEarlierTradeRequestVersion() {
+        MarketSession initial = MarketSession.tradeView("farming", "wheat", false);
+        MarketSession afterFirstChange = initial.withQuantityPending(3);
+        MarketSession afterSecondChange = afterFirstChange.withQuantityPending(7);
+
+        assertFalse(afterSecondChange.matchesTradeRequest(
+                "farming",
+                "wheat",
+                3,
+                afterFirstChange.quoteRequestVersion()
+        ));
+        assertTrue(afterSecondChange.matchesTradeRequest(
+                "farming",
+                "wheat",
+                7,
+                afterSecondChange.quoteRequestVersion()
+        ));
+    }
 }
