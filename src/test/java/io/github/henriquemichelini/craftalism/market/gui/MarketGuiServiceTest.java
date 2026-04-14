@@ -20,6 +20,8 @@ import org.bukkit.Server;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.Test;
 
@@ -379,6 +381,146 @@ class MarketGuiServiceTest {
         assertFalse(updated.executingSell());
     }
 
+    @Test
+    void onlineBuySuccessDeliversItemsAndReturnsSessionToPendingRefresh() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        MarketBrowseSnapshotService snapshotService = new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
+        Player onlinePlayer = fakeOnlinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(onlinePlayer),
+                snapshotService,
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                registry,
+                new YamlConfiguration()
+        );
+        MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(3)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 3, "14.4", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 3, "12.3", "4.1", "coins", "sell-token", "snapshot-v1")
+                ))
+                .withExecutionPending(MarketQuoteSide.BUY);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applyBuySuccess",
+                UUID.class,
+                Material.class,
+                MarketSession.class,
+                MarketExecuteResult.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+                guiService,
+                playerId,
+                Material.WHEAT,
+                executingSession,
+                new MarketExecuteResult(3, "14.4", "4.8", "coins", "snapshot-v2")
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(3, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(3, updated.quantity());
+        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void onlineBuyFailureRestoresAvailableStateWithExecuteUnavailableMessage() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("messages.execute-unavailable", "&cTrade execution is currently unavailable.");
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        Player onlinePlayer = fakeOnlinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(onlinePlayer),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                registry,
+                config
+        );
+        MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(2)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 2, "9.6", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 2, "8.2", "4.1", "coins", "sell-token", "snapshot-v1")
+                ))
+                .withExecutionPending(MarketQuoteSide.BUY);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applyBuyFailure",
+                UUID.class,
+                MarketSession.class,
+                RuntimeException.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, playerId, executingSession, new IllegalStateException("boom"));
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("&cTrade execution is currently unavailable.", updated.quoteStatusMessage());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void onlineSellRejectionRestoresAvailableStateWithMappedMessage() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("messages.rejections.INSUFFICIENT_STOCK", "&cThere is not enough stock for that purchase.");
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        Player onlinePlayer = fakeOnlinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(onlinePlayer),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                registry,
+                config
+        );
+        MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(2)
+                .withQuotePair(new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 2, "9.6", "4.8", "coins", "buy-token", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 2, "8.2", "4.1", "coins", "sell-token", "snapshot-v1")
+                ))
+                .withExecutionPending(MarketQuoteSide.SELL);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applySellRejection",
+                UUID.class,
+                MarketSession.class,
+                MarketExecuteRejectedException.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+                guiService,
+                playerId,
+                executingSession,
+                new MarketExecuteRejectedException("INSUFFICIENT_STOCK", "Rejected", "snapshot-v2")
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("&cThere is not enough stock for that purchase.", updated.quoteStatusMessage());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
     private MarketGuiService guiService(YamlConfiguration config) {
         return guiService(config, new MarketInventoryService());
     }
@@ -481,6 +623,37 @@ class MarketGuiServiceTest {
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getUniqueId" -> playerId;
                     case "isOnline" -> false;
+                    case "sendMessage" -> null;
+                    default -> primitiveDefault(method.getReturnType());
+                }
+        );
+    }
+
+    private Player fakeOnlinePlayer(UUID playerId) {
+        Inventory topInventory = (Inventory) Proxy.newProxyInstance(
+                Inventory.class.getClassLoader(),
+                new Class[]{Inventory.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getHolder" -> null;
+                    default -> primitiveDefault(method.getReturnType());
+                }
+        );
+        InventoryView openInventory = (InventoryView) Proxy.newProxyInstance(
+                InventoryView.class.getClassLoader(),
+                new Class[]{InventoryView.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getTopInventory" -> topInventory;
+                    default -> primitiveDefault(method.getReturnType());
+                }
+        );
+
+        return (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class[]{Player.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getUniqueId" -> playerId;
+                    case "isOnline" -> true;
+                    case "getOpenInventory" -> openInventory;
                     case "sendMessage" -> null;
                     default -> primitiveDefault(method.getReturnType());
                 }
