@@ -27,6 +27,7 @@ public final class MarketApiConfigurationResolver {
         return new MarketApiConfiguration(
             normalizeBaseUrl(
                 firstNonBlank(
+                    environment.get("MARKET_API_BASE_URL"),
                     environment.get("CRAFTALISM_API_URL"),
                     config.getString("market-api.base-url", DEFAULT_BASE_URL)
                 )
