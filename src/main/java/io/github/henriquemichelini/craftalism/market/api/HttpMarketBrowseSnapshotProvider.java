@@ -21,23 +21,30 @@ public final class HttpMarketBrowseSnapshotProvider implements MarketBrowseSnaps
     private final URI snapshotUri;
     private final Duration requestTimeout;
     private final FileConfiguration config;
+    private final MarketBearerTokenProvider bearerTokenProvider;
 
     public HttpMarketBrowseSnapshotProvider(
             MarketApiTransport transport,
             URI snapshotUri,
             Duration requestTimeout,
-            FileConfiguration config
+            FileConfiguration config,
+            MarketBearerTokenProvider bearerTokenProvider
     ) {
         this.transport = transport;
         this.snapshotUri = snapshotUri;
         this.requestTimeout = requestTimeout;
         this.config = config;
+        this.bearerTokenProvider = bearerTokenProvider;
     }
 
     @Override
     public MarketBrowseSnapshot loadSnapshot() {
         try {
-            String responseBody = transport.get(snapshotUri, requestTimeout);
+            String responseBody = transport.get(
+                    snapshotUri,
+                    requestTimeout,
+                    bearerTokenProvider.getBearerToken()
+            );
             return parseSnapshot(responseBody);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to fetch market snapshot from the API.", exception);

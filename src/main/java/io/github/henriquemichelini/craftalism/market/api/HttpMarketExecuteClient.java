@@ -11,13 +11,18 @@ public final class HttpMarketExecuteClient implements MarketExecuteClient {
     private final MarketApiTransport transport;
     private final URI executeUri;
     private final Duration requestTimeout;
-    private final String bearerToken;
+    private final MarketBearerTokenProvider bearerTokenProvider;
 
-    public HttpMarketExecuteClient(MarketApiTransport transport, URI executeUri, Duration requestTimeout, String bearerToken) {
+    public HttpMarketExecuteClient(
+            MarketApiTransport transport,
+            URI executeUri,
+            Duration requestTimeout,
+            MarketBearerTokenProvider bearerTokenProvider
+    ) {
         this.transport = transport;
         this.executeUri = executeUri;
         this.requestTimeout = requestTimeout;
-        this.bearerToken = bearerToken;
+        this.bearerTokenProvider = bearerTokenProvider;
     }
 
     @Override
@@ -36,7 +41,12 @@ public final class HttpMarketExecuteClient implements MarketExecuteClient {
         requestBody.addProperty("snapshotVersion", snapshotVersion);
 
         try {
-            String responseBody = transport.postJson(executeUri, requestBody.toString(), requestTimeout, bearerToken);
+            String responseBody = transport.postJson(
+                    executeUri,
+                    requestBody.toString(),
+                    requestTimeout,
+                    bearerTokenProvider.getBearerToken()
+            );
             return parseSuccess(responseBody);
         } catch (MarketApiRequestException exception) {
             throw parseRejection(exception);

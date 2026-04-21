@@ -4,11 +4,16 @@ import io.github.henriquemichelini.craftalism.market.api.HttpMarketBrowseSnapsho
 import io.github.henriquemichelini.craftalism.market.api.HttpMarketExecuteClient;
 import io.github.henriquemichelini.craftalism.market.api.HttpMarketQuoteClient;
 import io.github.henriquemichelini.craftalism.market.api.JavaHttpMarketApiTransport;
+import io.github.henriquemichelini.craftalism.market.api.MarketApiConfiguration;
+import io.github.henriquemichelini.craftalism.market.api.MarketApiConfigurationResolver;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotProvider;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.api.MarketApiTransport;
+import io.github.henriquemichelini.craftalism.market.api.MarketBearerTokenProvider;
+import io.github.henriquemichelini.craftalism.market.api.MarketBearerTokenProviderFactory;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteClient;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteClient;
+import io.github.henriquemichelini.craftalism.market.api.SystemMarketEnvironment;
 import io.github.henriquemichelini.craftalism.market.command.MarketCommand;
 import io.github.henriquemichelini.craftalism.market.gui.MarketGuiService;
 import io.github.henriquemichelini.craftalism.market.gui.MarketInventoryListener;
@@ -26,28 +31,35 @@ public final class MarketPlugin extends JavaPlugin {
         saveDefaultConfig();
 
         MarketSessionRegistry sessionRegistry = new MarketSessionRegistry();
-        MarketApiTransport apiTransport = new JavaHttpMarketApiTransport(
-                Duration.ofMillis(getConfig().getLong("market-api.connect-timeout-ms", 3000L))
+        MarketApiConfiguration apiConfiguration = new MarketApiConfigurationResolver(
+                getConfig(),
+                new SystemMarketEnvironment(),
+                getLogger()
+        ).resolve();
+        MarketApiTransport apiTransport = new JavaHttpMarketApiTransport(apiConfiguration.connectTimeout());
+        MarketBearerTokenProvider bearerTokenProvider = MarketBearerTokenProviderFactory.create(
+                apiConfiguration,
+                apiTransport,
+                getLogger()
         );
-        String baseUrl = getConfig().getString("market-api.base-url", "http://127.0.0.1:8080");
-        Duration requestTimeout = Duration.ofMillis(getConfig().getLong("market-api.request-timeout-ms", 5000L));
         MarketBrowseSnapshotProvider snapshotProvider = new HttpMarketBrowseSnapshotProvider(
                 apiTransport,
-                URI.create(baseUrl + getConfig().getString("market-api.snapshot-path", "/market/snapshot")),
-                Duration.ofMillis(getConfig().getLong("market-api.request-timeout-ms", 5000L)),
-                getConfig()
+                URI.create(apiConfiguration.baseUrl() + apiConfiguration.snapshotPath()),
+                apiConfiguration.requestTimeout(),
+                getConfig(),
+                bearerTokenProvider
         );
         MarketQuoteClient quoteClient = new HttpMarketQuoteClient(
                 apiTransport,
-                URI.create(baseUrl + getConfig().getString("market-api.quote-path", "/market/quote")),
-                requestTimeout,
-                getConfig().getString("market-api.auth-token", "")
+                URI.create(apiConfiguration.baseUrl() + apiConfiguration.quotePath()),
+                apiConfiguration.requestTimeout(),
+                bearerTokenProvider
         );
         MarketExecuteClient executeClient = new HttpMarketExecuteClient(
                 apiTransport,
-                URI.create(baseUrl + getConfig().getString("market-api.execute-path", "/market/execute")),
-                requestTimeout,
-                getConfig().getString("market-api.auth-token", "")
+                URI.create(apiConfiguration.baseUrl() + apiConfiguration.executePath()),
+                apiConfiguration.requestTimeout(),
+                bearerTokenProvider
         );
         MarketInventoryService inventoryService = new MarketInventoryService();
         Executor asyncExecutor = runnable -> getServer().getScheduler().runTaskAsynchronously(this, runnable);

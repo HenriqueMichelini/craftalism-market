@@ -14,16 +14,18 @@ class HttpMarketExecuteClientTest {
     @Test
     void postsExecuteRequestAndParsesSuccessResponse() {
         AtomicReference<String> requestBody = new AtomicReference<>();
+        AtomicReference<String> authHeader = new AtomicReference<>();
         HttpMarketExecuteClient client = new HttpMarketExecuteClient(
                 new MarketApiTransport() {
                     @Override
-                    public String get(URI uri, Duration timeout) {
+                    public String get(URI uri, Duration timeout, String bearerToken) {
                         throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public String postJson(URI uri, String body, Duration timeout, String bearerToken) {
                         requestBody.set(body);
+                        authHeader.set(bearerToken);
                         return """
                                 {
                                   "status": "SUCCESS",
@@ -35,10 +37,15 @@ class HttpMarketExecuteClientTest {
                                 }
                                 """;
                     }
+
+                    @Override
+                    public String postForm(URI uri, String body, Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
                 },
                 URI.create("http://localhost:8080/market/execute"),
                 Duration.ofSeconds(5),
-                "secret-token"
+                () -> "secret-token"
         );
 
         MarketExecuteResult result = client.executeTrade("wheat", MarketQuoteSide.BUY, 4, "quote-123", "snapshot-v2");
@@ -46,6 +53,7 @@ class HttpMarketExecuteClientTest {
         assertEquals(4, result.executedQuantity());
         assertEquals("19.80", result.totalPrice());
         assertEquals("snapshot-v3", result.snapshotVersion());
+        assertEquals("secret-token", authHeader.get());
         assertTrue(requestBody.get().contains("\"quoteToken\":\"quote-123\""));
         assertTrue(requestBody.get().contains("\"side\":\"BUY\""));
     }
@@ -55,7 +63,7 @@ class HttpMarketExecuteClientTest {
         HttpMarketExecuteClient client = new HttpMarketExecuteClient(
                 new MarketApiTransport() {
                     @Override
-                    public String get(URI uri, Duration timeout) {
+                    public String get(URI uri, Duration timeout, String bearerToken) {
                         throw new UnsupportedOperationException();
                     }
 
@@ -70,10 +78,15 @@ class HttpMarketExecuteClientTest {
                                 }
                                 """);
                     }
+
+                    @Override
+                    public String postForm(URI uri, String body, Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
                 },
                 URI.create("http://localhost:8080/market/execute"),
                 Duration.ofSeconds(5),
-                "secret-token"
+                () -> "secret-token"
         );
 
         MarketExecuteRejectedException rejection = assertThrows(

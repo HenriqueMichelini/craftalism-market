@@ -17,7 +17,7 @@ class HttpMarketQuoteClientTest {
         HttpMarketQuoteClient client = new HttpMarketQuoteClient(
                 new MarketApiTransport() {
                     @Override
-                    public String get(URI uri, Duration timeout) {
+                    public String get(URI uri, Duration timeout, String bearerToken) {
                         throw new UnsupportedOperationException();
                     }
 
@@ -36,10 +36,15 @@ class HttpMarketQuoteClientTest {
                                 }
                                 """;
                     }
+
+                    @Override
+                    public String postForm(URI uri, String body, Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
                 },
                 URI.create("http://localhost:8080/market/quote"),
                 Duration.ofSeconds(5),
-                "secret-token"
+                () -> "secret-token"
         );
 
         MarketQuoteResult result = client.requestQuote("wheat", MarketQuoteSide.BUY, 4, "snapshot-v1");

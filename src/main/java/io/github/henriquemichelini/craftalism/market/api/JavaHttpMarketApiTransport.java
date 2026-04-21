@@ -17,11 +17,14 @@ public final class JavaHttpMarketApiTransport implements MarketApiTransport {
     }
 
     @Override
-    public String get(URI uri, Duration timeout) throws IOException, InterruptedException {
-        return send(HttpRequest.newBuilder(uri)
+    public String get(URI uri, Duration timeout, String bearerToken) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(timeout)
-                .GET()
-                .build());
+                .GET();
+        if (bearerToken != null && !bearerToken.isBlank()) {
+            builder.header("Authorization", "Bearer " + bearerToken);
+        }
+        return send(builder.build());
     }
 
     @Override
@@ -32,6 +35,19 @@ public final class JavaHttpMarketApiTransport implements MarketApiTransport {
                 .POST(HttpRequest.BodyPublishers.ofString(body));
         if (bearerToken != null && !bearerToken.isBlank()) {
             builder.header("Authorization", "Bearer " + bearerToken);
+        }
+
+        return send(builder.build());
+    }
+
+    @Override
+    public String postForm(URI uri, String body, Duration timeout, String authorizationHeader) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
+                .timeout(timeout)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            builder.header("Authorization", authorizationHeader);
         }
 
         return send(builder.build());

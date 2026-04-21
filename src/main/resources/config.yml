@@ -34,6 +34,13 @@ market-api:
   quote-path: "/market/quote"
   execute-path: "/market/execute"
   auth-token: ""
+  auth:
+    issuer-url: ""
+    token-path: "/oauth2/token"
+    client-id: ""
+    client-secret: ""
+    api-key: ""
+    scopes: ""
   connect-timeout-ms: 3000
   request-timeout-ms: 5000
   quote-debounce-ticks: 6

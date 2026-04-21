@@ -11,13 +11,18 @@ public final class HttpMarketQuoteClient implements MarketQuoteClient {
     private final MarketApiTransport transport;
     private final URI quoteUri;
     private final Duration requestTimeout;
-    private final String bearerToken;
+    private final MarketBearerTokenProvider bearerTokenProvider;
 
-    public HttpMarketQuoteClient(MarketApiTransport transport, URI quoteUri, Duration requestTimeout, String bearerToken) {
+    public HttpMarketQuoteClient(
+            MarketApiTransport transport,
+            URI quoteUri,
+            Duration requestTimeout,
+            MarketBearerTokenProvider bearerTokenProvider
+    ) {
         this.transport = transport;
         this.quoteUri = quoteUri;
         this.requestTimeout = requestTimeout;
-        this.bearerToken = bearerToken;
+        this.bearerTokenProvider = bearerTokenProvider;
     }
 
     @Override
@@ -31,7 +36,12 @@ public final class HttpMarketQuoteClient implements MarketQuoteClient {
         }
 
         try {
-            String responseBody = transport.postJson(quoteUri, requestBody.toString(), requestTimeout, bearerToken);
+            String responseBody = transport.postJson(
+                    quoteUri,
+                    requestBody.toString(),
+                    requestTimeout,
+                    bearerTokenProvider.getBearerToken()
+            );
             return parseQuote(side, responseBody);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to request market quote from the API.", exception);

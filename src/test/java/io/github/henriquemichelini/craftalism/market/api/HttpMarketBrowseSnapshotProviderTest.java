@@ -18,11 +18,13 @@ class HttpMarketBrowseSnapshotProviderTest {
         YamlConfiguration configuration = new YamlConfiguration();
         configuration.set("market-display.categories.farming.description", java.util.List.of("&7Browse staple crops."));
         configuration.set("market-display.items.wheat.description", java.util.List.of("&7A common crop."));
+        java.util.concurrent.atomic.AtomicReference<String> authHeader = new java.util.concurrent.atomic.AtomicReference<>();
 
         HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
                 new MarketApiTransport() {
                     @Override
-                    public String get(java.net.URI uri, java.time.Duration timeout) {
+                    public String get(java.net.URI uri, java.time.Duration timeout, String bearerToken) {
+                        authHeader.set(bearerToken);
                         return """
                         {
                           "snapshotVersion": "opaque-version-token",
@@ -56,10 +58,16 @@ class HttpMarketBrowseSnapshotProviderTest {
                     public String postJson(java.net.URI uri, String body, java.time.Duration timeout, String bearerToken) {
                         throw new UnsupportedOperationException();
                     }
+
+                    @Override
+                    public String postForm(java.net.URI uri, String body, java.time.Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
                 },
                 URI.create("http://localhost:8080/market/snapshot"),
                 Duration.ofSeconds(5),
-                configuration
+                configuration,
+                () -> "secret-token"
         );
 
         MarketBrowseSnapshot snapshot = provider.loadSnapshot();
@@ -70,6 +78,7 @@ class HttpMarketBrowseSnapshotProviderTest {
         assertEquals(Material.WHEAT, snapshot.categories().getFirst().icon());
         assertEquals("4.8 coins", snapshot.categories().getFirst().items().getFirst().buyEstimate());
         assertEquals("Stock: 1820", snapshot.categories().getFirst().items().getFirst().stockDisplay());
+        assertEquals("secret-token", authHeader.get());
     }
 
     @Test
@@ -77,7 +86,7 @@ class HttpMarketBrowseSnapshotProviderTest {
         HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
                 new MarketApiTransport() {
                     @Override
-                    public String get(java.net.URI uri, java.time.Duration timeout) {
+                    public String get(java.net.URI uri, java.time.Duration timeout, String bearerToken) {
                         return "{\"snapshotVersion\":\"x\"}";
                     }
 
@@ -85,10 +94,16 @@ class HttpMarketBrowseSnapshotProviderTest {
                     public String postJson(java.net.URI uri, String body, java.time.Duration timeout, String bearerToken) {
                         throw new UnsupportedOperationException();
                     }
+
+                    @Override
+                    public String postForm(java.net.URI uri, String body, java.time.Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
                 },
                 URI.create("http://localhost:8080/market/snapshot"),
                 Duration.ofSeconds(5),
-                new YamlConfiguration()
+                new YamlConfiguration(),
+                () -> "secret-token"
         );
 
         IllegalStateException error = assertThrows(IllegalStateException.class, provider::loadSnapshot);
