@@ -3,6 +3,7 @@ package io.github.henriquemichelini.craftalism.market.command;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotLoadResult;
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshotService;
 import io.github.henriquemichelini.craftalism.market.gui.MarketGuiService;
+import java.util.concurrent.CompletionException;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -62,6 +63,14 @@ public final class MarketCommand implements CommandExecutor {
         }
 
         if (error != null) {
+            plugin
+                .getLogger()
+                .warning(
+                    "Unable to open market for " +
+                        player.getUniqueId() +
+                        " because no live snapshot could be loaded and no cached snapshot is available: " +
+                        rootCause(error).getMessage()
+                );
             player.sendMessage(render(plugin
                     .getConfig()
                     .getString(
@@ -82,5 +91,16 @@ public final class MarketCommand implements CommandExecutor {
 
     private Component render(String text) {
         return LEGACY_SERIALIZER.deserialize(text);
+    }
+
+    private Throwable rootCause(Throwable error) {
+        Throwable current = error;
+        while (
+            current instanceof CompletionException &&
+            current.getCause() != null
+        ) {
+            current = current.getCause();
+        }
+        return current;
     }
 }

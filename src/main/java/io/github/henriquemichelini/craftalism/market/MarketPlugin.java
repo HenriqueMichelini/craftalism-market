@@ -39,6 +39,18 @@ public final class MarketPlugin extends JavaPlugin {
         MarketApiTransport apiTransport = new JavaHttpMarketApiTransport(
             apiConfiguration.connectTimeout()
         );
+        getLogger()
+            .info(
+                "Craftalism Market API endpoints: snapshot=" +
+                    apiConfiguration.baseUrl() +
+                    apiConfiguration.snapshotPath() +
+                    ", quote=" +
+                    apiConfiguration.baseUrl() +
+                    apiConfiguration.quotePath() +
+                    ", execute=" +
+                    apiConfiguration.baseUrl() +
+                    apiConfiguration.executePath()
+            );
         MarketBearerTokenProvider bearerTokenProvider =
             MarketBearerTokenProviderFactory.create(
                 apiConfiguration,
