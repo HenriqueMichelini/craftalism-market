@@ -30,9 +30,9 @@ messages:
 
 market-api:
   base-url: "http://127.0.0.1:8080"
-  snapshot-path: "/market/snapshot"
-  quote-path: "/market/quote"
-  execute-path: "/market/execute"
+  snapshot-path: "/api/market/snapshot"
+  quote-path: "/api/market/quotes"
+  execute-path: "/api/market/execute"
   auth-token: ""
   auth:
     issuer-url: ""

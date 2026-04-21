@@ -7,6 +7,9 @@ import org.bukkit.configuration.file.FileConfiguration;
 public final class MarketApiConfigurationResolver {
 
     private static final String DEFAULT_BASE_URL = "http://127.0.0.1:8080";
+    private static final String DEFAULT_SNAPSHOT_PATH = "/api/market/snapshot";
+    private static final String DEFAULT_QUOTE_PATH = "/api/market/quotes";
+    private static final String DEFAULT_EXECUTE_PATH = "/api/market/execute";
     private static final String DEFAULT_TOKEN_PATH = "/oauth2/token";
 
     private final FileConfiguration config;
@@ -35,17 +38,20 @@ public final class MarketApiConfigurationResolver {
             normalizePath(
                 config.getString(
                     "market-api.snapshot-path",
-                    "/market/snapshot"
+                    DEFAULT_SNAPSHOT_PATH
                 ),
-                "/market/snapshot"
+                DEFAULT_SNAPSHOT_PATH
             ),
             normalizePath(
-                config.getString("market-api.quote-path", "/market/quote"),
-                "/market/quote"
+                config.getString("market-api.quote-path", DEFAULT_QUOTE_PATH),
+                DEFAULT_QUOTE_PATH
             ),
             normalizePath(
-                config.getString("market-api.execute-path", "/market/execute"),
-                "/market/execute"
+                config.getString(
+                    "market-api.execute-path",
+                    DEFAULT_EXECUTE_PATH
+                ),
+                DEFAULT_EXECUTE_PATH
             ),
             blankToEmpty(config.getString("market-api.auth-token", "")),
             normalizeOptionalBaseUrl(

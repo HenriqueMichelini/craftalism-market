@@ -40,6 +40,19 @@ class MarketApiConfigurationResolverTest {
         assertEquals("http://market-api:8080", configuration.baseUrl());
     }
 
+    @Test
+    void usesApiMarketRouteDefaults() {
+        MarketApiConfiguration configuration = new MarketApiConfigurationResolver(
+            new YamlConfiguration(),
+            new MapMarketEnvironment(Map.of()),
+            Logger.getLogger(MarketApiConfigurationResolverTest.class.getName())
+        ).resolve();
+
+        assertEquals("/api/market/snapshot", configuration.snapshotPath());
+        assertEquals("/api/market/quotes", configuration.quotePath());
+        assertEquals("/api/market/execute", configuration.executePath());
+    }
+
     private record MapMarketEnvironment(Map<String, String> values)
         implements MarketEnvironment
     {
