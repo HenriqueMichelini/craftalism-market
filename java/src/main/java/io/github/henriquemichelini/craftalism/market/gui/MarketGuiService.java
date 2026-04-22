@@ -108,7 +108,7 @@ public final class MarketGuiService {
 
         holder.setInventory(inventory);
         player.openInventory(inventory);
-        sessionRegistry.put(
+        replaceSession(
             player.getUniqueId(),
             MarketSession.categoryList(snapshot.readOnly())
         );
@@ -282,7 +282,7 @@ public final class MarketGuiService {
 
         holder.setInventory(inventory);
         player.openInventory(inventory);
-        sessionRegistry.put(
+        replaceSession(
             player.getUniqueId(),
             MarketSession.itemList(categoryId, snapshot.readOnly())
         );
@@ -324,7 +324,7 @@ public final class MarketGuiService {
                   );
         session = sessionForSnapshot(session, snapshot);
         renderTrade(player, snapshot, category, item, session);
-        sessionRegistry.put(player.getUniqueId(), session);
+        replaceSession(player.getUniqueId(), session);
 
         if (
             !session.readOnly() &&
@@ -402,6 +402,13 @@ public final class MarketGuiService {
     public void closeSession(UUID playerId) {
         cancelPendingQuote(playerId);
         sessionRegistry.remove(playerId);
+    }
+
+    private void replaceSession(UUID playerId, MarketSession session) {
+        sessionRegistry
+            .replace(playerId, session)
+            .filter(previous -> previous.screen() == MarketScreen.TRADE_VIEW)
+            .ifPresent(ignored -> cancelPendingQuote(playerId));
     }
 
     public void handlePlayerJoin(Player player) {

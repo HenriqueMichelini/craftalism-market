@@ -13,6 +13,10 @@ public final class MarketSessionRegistry {
         sessions.put(playerId, session);
     }
 
+    public Optional<MarketSession> replace(UUID playerId, MarketSession session) {
+        return Optional.ofNullable(sessions.put(playerId, session));
+    }
+
     public Optional<MarketSession> get(UUID playerId) {
         return Optional.ofNullable(sessions.get(playerId));
     }

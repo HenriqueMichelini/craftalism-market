@@ -39,6 +39,7 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -573,6 +574,36 @@ class MarketGuiServiceTest {
 
         assertTrue(pendingQuoteTasks(guiService).get(playerId) == newerTask);
         assertEquals(currentSession, registry.get(playerId).orElseThrow());
+    }
+
+    @Test
+    void replacingTradeSessionCancelsPendingQuoteTask() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakeOfflinePlayer(playerId)),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                registry,
+                new YamlConfiguration()
+        );
+        registry.put(playerId, MarketSession.tradeView("farming", "wheat", false));
+        AtomicBoolean cancelled = new AtomicBoolean();
+        pendingQuoteTasks(guiService).put(playerId, fakeTask(cancelled));
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "replaceSession",
+                UUID.class,
+                MarketSession.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, playerId, MarketSession.categoryList(false));
+
+        assertTrue(cancelled.get());
+        assertFalse(pendingQuoteTasks(guiService).containsKey(playerId));
+        assertEquals(MarketSession.categoryList(false), registry.get(playerId).orElseThrow());
     }
 
     @Test
@@ -1251,10 +1282,20 @@ class MarketGuiServiceTest {
     }
 
     private BukkitTask fakeTask() {
+        return fakeTask(new AtomicBoolean());
+    }
+
+    private BukkitTask fakeTask(AtomicBoolean cancelled) {
         return (BukkitTask) Proxy.newProxyInstance(
                 BukkitTask.class.getClassLoader(),
                 new Class[]{BukkitTask.class},
-                (proxy, method, args) -> primitiveDefault(method.getReturnType())
+                (proxy, method, args) -> {
+                    if ("cancel".equals(method.getName())) {
+                        cancelled.set(true);
+                        return null;
+                    }
+                    return primitiveDefault(method.getReturnType());
+                }
         );
     }
 
