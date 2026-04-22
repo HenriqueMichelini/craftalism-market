@@ -601,6 +601,7 @@ public final class MarketGuiService {
             .runTaskAsynchronously(plugin, () -> {
                 try {
                     MarketExecuteResult result = executeClient.executeTrade(
+                        player.getUniqueId(),
                         executingSession.selectedItemId(),
                         MarketQuoteSide.BUY,
                         executingSession.quantity(),
@@ -740,6 +741,7 @@ public final class MarketGuiService {
             .runTaskAsynchronously(plugin, () -> {
                 try {
                     MarketExecuteResult result = executeClient.executeTrade(
+                        player.getUniqueId(),
                         executingSession.selectedItemId(),
                         MarketQuoteSide.SELL,
                         executingSession.quantity(),
@@ -801,12 +803,14 @@ public final class MarketGuiService {
                 () -> {
                     try {
                         MarketQuoteResult buyQuote = quoteClient.requestQuote(
+                            playerId,
                             session.selectedItemId(),
                             MarketQuoteSide.BUY,
                             session.quantity(),
                             snapshotVersion
                         );
                         MarketQuoteResult sellQuote = quoteClient.requestQuote(
+                            playerId,
                             session.selectedItemId(),
                             MarketQuoteSide.SELL,
                             session.quantity(),

@@ -58,8 +58,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 null,
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new MarketInventoryService(),
                 registry,
                 new YamlConfiguration()
@@ -79,8 +79,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 null,
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new MarketInventoryService(),
                 registry,
                 new YamlConfiguration()
@@ -111,8 +111,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakePlayer(playerId)),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new MarketInventoryService(),
                 new MarketSessionRegistry(),
                 new YamlConfiguration()
@@ -300,8 +300,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakePlayer(playerId), testLogger.logger()),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 new MarketSessionRegistry(),
                 new YamlConfiguration()
@@ -357,8 +357,8 @@ class MarketGuiServiceTest {
         MarketGuiService firstService = new MarketGuiService(
                 fakePlugin(fakeOfflinePlayer(playerId), Logger.getLogger("first"), tempDir.toFile()),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 new MarketSessionRegistry(),
                 new YamlConfiguration()
@@ -375,8 +375,8 @@ class MarketGuiServiceTest {
         MarketGuiService recreatedService = new MarketGuiService(
                 fakePlugin(fakePlayer(playerId), Logger.getLogger("second"), tempDir.toFile()),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 new MarketSessionRegistry(),
                 new YamlConfiguration()
@@ -398,8 +398,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakePlayer(playerId), Logger.getLogger("failed-sell"), tempDir.toFile()),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 new MarketSessionRegistry(),
                 configWithSettlementMessages()
@@ -428,8 +428,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakePlayer(playerId), testLogger.logger(), tempDir.toFile()),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 new MarketSessionRegistry(),
                 configWithSettlementMessages()
@@ -467,8 +467,8 @@ class MarketGuiServiceTest {
             MarketGuiService guiService = new MarketGuiService(
                     plugin,
                     new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                    (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                    (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                    (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                    (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                     new FakeInventoryAccess(),
                     registry,
                     config
@@ -521,8 +521,8 @@ class MarketGuiServiceTest {
             MarketGuiService guiService = new MarketGuiService(
                     plugin,
                     new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                    (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                    (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                    (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                    (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                     new FakeInventoryAccess(),
                     registry,
                     config
@@ -568,8 +568,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakeOfflinePlayer(playerId)),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 registry,
                 new YamlConfiguration()
@@ -609,8 +609,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakeOfflinePlayer(playerId)),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 registry,
                 new YamlConfiguration()
@@ -642,8 +642,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakeOfflinePlayer(playerId)),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 registry,
                 new YamlConfiguration()
@@ -673,8 +673,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 null,
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 registry,
                 new YamlConfiguration()
@@ -717,8 +717,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(offlinePlayer),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 registry,
                 config
@@ -760,8 +760,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(onlinePlayer),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 registry,
                 new YamlConfiguration()
@@ -811,8 +811,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(offlinePlayer),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 registry,
                 new YamlConfiguration()
@@ -863,8 +863,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(onlinePlayer),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 registry,
                 config
@@ -905,8 +905,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(onlinePlayer),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 registry,
                 config
@@ -953,8 +953,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(onlinePlayer),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 registry,
                 new YamlConfiguration()
@@ -1005,8 +1005,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(offlinePlayer),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 registry,
                 new YamlConfiguration()
@@ -1064,8 +1064,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(onlinePlayer, testLogger.logger()),
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 registry,
                 config
@@ -1113,8 +1113,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
                 fakePlugin(fakeOfflinePlayer(playerId), testLogger.logger()),
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 new FakeInventoryAccess(),
                 new MarketSessionRegistry(),
                 new YamlConfiguration()
@@ -1147,8 +1147,8 @@ class MarketGuiServiceTest {
         return new MarketGuiService(
                 null,
                 new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
                 inventoryAccess,
                 new MarketSessionRegistry(),
                 config

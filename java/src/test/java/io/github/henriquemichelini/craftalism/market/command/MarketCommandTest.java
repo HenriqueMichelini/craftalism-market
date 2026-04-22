@@ -56,8 +56,8 @@ class MarketCommandTest {
         MarketGuiService guiService = new MarketGuiService(
                 null,
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError("quote client should not be used"); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError("execute client should not be used"); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError("quote client should not be used"); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError("execute client should not be used"); },
                 null,
                 new io.github.henriquemichelini.craftalism.market.session.MarketSessionRegistry(),
                 new org.bukkit.configuration.file.YamlConfiguration()
@@ -86,8 +86,8 @@ class MarketCommandTest {
         MarketGuiService guiService = new MarketGuiService(
                 null,
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError("quote client should not be used"); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError("execute client should not be used"); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError("quote client should not be used"); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError("execute client should not be used"); },
                 null,
                 new io.github.henriquemichelini.craftalism.market.session.MarketSessionRegistry(),
                 new YamlConfiguration()
@@ -125,8 +125,8 @@ class MarketCommandTest {
         MarketGuiService guiService = new MarketGuiService(
                 null,
                 snapshotService,
-                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError("quote client should not be used"); },
-                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError("execute client should not be used"); },
+                (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> { throw new AssertionError("quote client should not be used"); },
+                (ignoredPlayerId, itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError("execute client should not be used"); },
                 null,
                 new io.github.henriquemichelini.craftalism.market.session.MarketSessionRegistry(),
                 new YamlConfiguration()

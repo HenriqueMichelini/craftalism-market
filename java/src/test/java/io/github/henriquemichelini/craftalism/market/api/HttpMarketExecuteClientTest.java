@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,12 +49,21 @@ class HttpMarketExecuteClientTest {
                 () -> "secret-token"
         );
 
-        MarketExecuteResult result = client.executeTrade("wheat", MarketQuoteSide.BUY, 4, "quote-123", "snapshot-v2");
+        UUID playerId = UUID.fromString("c5eb4cd5-183e-4148-b936-4a805b155a57");
+        MarketExecuteResult result = client.executeTrade(
+                playerId,
+                "wheat",
+                MarketQuoteSide.BUY,
+                4,
+                "quote-123",
+                "snapshot-v2"
+        );
 
         assertEquals(4, result.executedQuantity());
         assertEquals("19.80", result.totalPrice());
         assertEquals("snapshot-v3", result.snapshotVersion());
         assertEquals("secret-token", authHeader.get());
+        assertTrue(requestBody.get().contains("\"playerUuid\":\"" + playerId + "\""));
         assertTrue(requestBody.get().contains("\"quoteToken\":\"quote-123\""));
         assertTrue(requestBody.get().contains("\"side\":\"BUY\""));
     }
@@ -91,7 +101,14 @@ class HttpMarketExecuteClientTest {
 
         MarketExecuteRejectedException rejection = assertThrows(
                 MarketExecuteRejectedException.class,
-                () -> client.executeTrade("wheat", MarketQuoteSide.SELL, 4, "quote-123", "snapshot-v2")
+                () -> client.executeTrade(
+                        UUID.fromString("c5eb4cd5-183e-4148-b936-4a805b155a57"),
+                        "wheat",
+                        MarketQuoteSide.SELL,
+                        4,
+                        "quote-123",
+                        "snapshot-v2"
+                )
         );
 
         assertEquals("STALE_QUOTE", rejection.rejectionCode());

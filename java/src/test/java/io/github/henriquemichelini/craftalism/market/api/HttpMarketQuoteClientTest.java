@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,13 +48,15 @@ class HttpMarketQuoteClientTest {
                 () -> "secret-token"
         );
 
-        MarketQuoteResult result = client.requestQuote("wheat", MarketQuoteSide.BUY, 4, "snapshot-v1");
+        UUID playerId = UUID.fromString("c5eb4cd5-183e-4148-b936-4a805b155a57");
+        MarketQuoteResult result = client.requestQuote(playerId, "wheat", MarketQuoteSide.BUY, 4, "snapshot-v1");
 
         assertEquals(MarketQuoteSide.BUY, result.side());
         assertEquals("19.80", result.totalPrice());
         assertEquals("quote_123", result.quoteToken());
         assertEquals("snapshot-v2", result.snapshotVersion());
         assertEquals("secret-token", authHeader.get());
+        assertTrue(requestBody.get().contains("\"playerUuid\":\"" + playerId + "\""));
         assertTrue(requestBody.get().contains("\"itemId\":\"wheat\""));
         assertTrue(requestBody.get().contains("\"side\":\"BUY\""));
         assertTrue(requestBody.get().contains("\"quantity\":4"));

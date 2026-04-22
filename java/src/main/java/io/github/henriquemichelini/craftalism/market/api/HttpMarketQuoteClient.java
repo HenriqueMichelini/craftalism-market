@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.UUID;
 
 public final class HttpMarketQuoteClient implements MarketQuoteClient {
     private final MarketApiTransport transport;
@@ -26,8 +27,9 @@ public final class HttpMarketQuoteClient implements MarketQuoteClient {
     }
 
     @Override
-    public MarketQuoteResult requestQuote(String itemId, MarketQuoteSide side, int quantity, String snapshotVersion) {
+    public MarketQuoteResult requestQuote(UUID playerId, String itemId, MarketQuoteSide side, int quantity, String snapshotVersion) {
         JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("playerUuid", playerId.toString());
         requestBody.addProperty("itemId", itemId);
         requestBody.addProperty("side", side.name());
         requestBody.addProperty("quantity", quantity);

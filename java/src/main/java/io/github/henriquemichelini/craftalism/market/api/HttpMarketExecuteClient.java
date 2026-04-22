@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.UUID;
 
 public final class HttpMarketExecuteClient implements MarketExecuteClient {
     private final MarketApiTransport transport;
@@ -27,6 +28,7 @@ public final class HttpMarketExecuteClient implements MarketExecuteClient {
 
     @Override
     public MarketExecuteResult executeTrade(
+            UUID playerId,
             String itemId,
             MarketQuoteSide side,
             int quantity,
@@ -34,6 +36,7 @@ public final class HttpMarketExecuteClient implements MarketExecuteClient {
             String snapshotVersion
     ) {
         JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("playerUuid", playerId.toString());
         requestBody.addProperty("itemId", itemId);
         requestBody.addProperty("side", side.name());
         requestBody.addProperty("quantity", quantity);
