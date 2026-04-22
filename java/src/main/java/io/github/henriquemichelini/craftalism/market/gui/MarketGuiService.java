@@ -481,7 +481,7 @@ public final class MarketGuiService {
         boolean readOnly = sessionRegistry
             .get(player.getUniqueId())
             .map(MarketSession::readOnly)
-            .orElse(true);
+            .orElse(current.readOnly());
         return current.withReadOnly(readOnly);
     }
 
@@ -822,6 +822,7 @@ public final class MarketGuiService {
                                 )
                             );
                     } catch (RuntimeException error) {
+                        logQuoteRefreshError(playerId, session, error);
                         plugin
                             .getServer()
                             .getScheduler()
@@ -903,6 +904,42 @@ public final class MarketGuiService {
         if (updated != null && applied.get()) {
             rerenderTradeIfVisible(playerId, updated);
         }
+    }
+
+    private void logQuoteRefreshError(
+        UUID playerId,
+        MarketSession expectedSession,
+        RuntimeException error
+    ) {
+        if (plugin == null) {
+            return;
+        }
+
+        Throwable rootCause = rootCause(error);
+        plugin
+            .getLogger()
+            .warning(
+                "Market quote refresh failed for player " +
+                    playerId +
+                    ": item=" +
+                    expectedSession.selectedItemId() +
+                    ", quantity=" +
+                    expectedSession.quantity() +
+                    ", requestVersion=" +
+                    expectedSession.quoteRequestVersion() +
+                    ", error=" +
+                    rootCause.getClass().getSimpleName() +
+                    ": " +
+                    rootCause.getMessage()
+            );
+    }
+
+    private Throwable rootCause(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private void rerenderTradeIfVisible(UUID playerId, MarketSession session) {

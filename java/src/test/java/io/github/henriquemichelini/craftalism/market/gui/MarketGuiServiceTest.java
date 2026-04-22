@@ -101,6 +101,37 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void currentSnapshotPreservesLiveModeWhenSessionIsMissing() throws Exception {
+        MarketBrowseSnapshotService snapshotService = new MarketBrowseSnapshotService(
+                sampleProvider(),
+                directExecutor()
+        );
+        snapshotService.loadForInitialOpen().get();
+        UUID playerId = UUID.randomUUID();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakePlayer(playerId)),
+                snapshotService,
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new MarketInventoryService(),
+                new MarketSessionRegistry(),
+                new YamlConfiguration()
+        );
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "currentSnapshot",
+                Player.class
+        );
+        method.setAccessible(true);
+        MarketBrowseSnapshot snapshot = (MarketBrowseSnapshot) method.invoke(
+                guiService,
+                fakePlayer(playerId)
+        );
+
+        assertFalse(snapshot.readOnly());
+    }
+
+    @Test
     void snapshotServiceCanFallbackToReadOnlyCache() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         MarketBrowseSnapshotService service = new MarketBrowseSnapshotService(() -> {
