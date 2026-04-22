@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -70,6 +71,33 @@ class MarketGuiServiceTest {
         guiService.closeSession(playerId);
 
         assertFalse(registry.get(playerId).isPresent());
+    }
+
+    @Test
+    void closeSessionDuringInternalTransitionPreservesSessionAndQuoteTask() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        MarketGuiService guiService = new MarketGuiService(
+                null,
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new MarketInventoryService(),
+                registry,
+                new YamlConfiguration()
+        );
+        UUID playerId = UUID.randomUUID();
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        registry.put(playerId, session);
+        pendingQuoteTasks(guiService).put(playerId, fakeTask(cancelled));
+        internalInventoryTransitions(guiService).add(playerId);
+
+        guiService.closeSession(playerId);
+
+        assertEquals(session, registry.get(playerId).orElseThrow());
+        assertTrue(pendingQuoteTasks(guiService).containsKey(playerId));
+        assertFalse(cancelled.get());
+        assertFalse(internalInventoryTransitions(guiService).contains(playerId));
     }
 
     @Test
@@ -1279,6 +1307,13 @@ class MarketGuiServiceTest {
         Field field = MarketGuiService.class.getDeclaredField("pendingQuoteTasks");
         field.setAccessible(true);
         return (Map<UUID, BukkitTask>) field.get(guiService);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<UUID> internalInventoryTransitions(MarketGuiService guiService) throws Exception {
+        Field field = MarketGuiService.class.getDeclaredField("internalInventoryTransitions");
+        field.setAccessible(true);
+        return (Set<UUID>) field.get(guiService);
     }
 
     private BukkitTask fakeTask() {

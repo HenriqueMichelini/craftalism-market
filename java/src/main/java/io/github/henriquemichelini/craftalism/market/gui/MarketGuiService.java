@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,6 +62,8 @@ public final class MarketGuiService {
     private final FileConfiguration config;
     private final Map<UUID, BukkitTask> pendingQuoteTasks =
         new ConcurrentHashMap<>();
+    private final Set<UUID> internalInventoryTransitions =
+        ConcurrentHashMap.newKeySet();
     private final Map<UUID, List<DeferredSettlement>> deferredSettlements =
         new ConcurrentHashMap<>();
     private final DeferredSettlementStore deferredSettlementStore;
@@ -107,7 +110,7 @@ public final class MarketGuiService {
         }
 
         holder.setInventory(inventory);
-        player.openInventory(inventory);
+        openMarketInventory(player, inventory);
         replaceSession(
             player.getUniqueId(),
             MarketSession.categoryList(snapshot.readOnly())
@@ -281,7 +284,7 @@ public final class MarketGuiService {
         );
 
         holder.setInventory(inventory);
-        player.openInventory(inventory);
+        openMarketInventory(player, inventory);
         replaceSession(
             player.getUniqueId(),
             MarketSession.itemList(categoryId, snapshot.readOnly())
@@ -396,12 +399,48 @@ public final class MarketGuiService {
         );
 
         holder.setInventory(inventory);
-        player.openInventory(inventory);
+        openMarketInventory(player, inventory);
     }
 
     public void closeSession(UUID playerId) {
+        if (internalInventoryTransitions.remove(playerId)) {
+            return;
+        }
+
         cancelPendingQuote(playerId);
         sessionRegistry.remove(playerId);
+    }
+
+    private void openMarketInventory(Player player, Inventory inventory) {
+        UUID playerId = player.getUniqueId();
+        boolean replacingMarketInventory = isMarketInventoryOpen(player);
+        if (replacingMarketInventory) {
+            internalInventoryTransitions.add(playerId);
+        }
+
+        player.openInventory(inventory);
+
+        if (replacingMarketInventory && plugin != null) {
+            plugin
+                .getServer()
+                .getScheduler()
+                .runTask(plugin, () ->
+                    internalInventoryTransitions.remove(playerId)
+                );
+        } else {
+            internalInventoryTransitions.remove(playerId);
+        }
+    }
+
+    private boolean isMarketInventoryOpen(Player player) {
+        try {
+            return player
+                .getOpenInventory()
+                .getTopInventory()
+                .getHolder() instanceof MarketInventoryHolder;
+        } catch (RuntimeException error) {
+            return false;
+        }
     }
 
     private void replaceSession(UUID playerId, MarketSession session) {
