@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -797,7 +798,7 @@ public final class MarketGuiService {
         MarketSession expectedSession,
         MarketQuotePair quotePair
     ) {
-        pendingQuoteTasks.remove(playerId);
+        AtomicBoolean applied = new AtomicBoolean();
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
                 if (
@@ -811,11 +812,16 @@ public final class MarketGuiService {
                     return current;
                 }
 
+                applied.set(true);
                 return current.withQuotePair(quotePair);
             })
             .orElse(null);
 
-        if (updated != null) {
+        if (applied.get()) {
+            pendingQuoteTasks.remove(playerId);
+        }
+
+        if (updated != null && applied.get()) {
             rerenderTradeIfVisible(playerId, updated);
         }
     }
@@ -825,7 +831,7 @@ public final class MarketGuiService {
         MarketSession expectedSession,
         String failureMessage
     ) {
-        pendingQuoteTasks.remove(playerId);
+        AtomicBoolean applied = new AtomicBoolean();
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
                 if (
@@ -839,11 +845,16 @@ public final class MarketGuiService {
                     return current;
                 }
 
+                applied.set(true);
                 return current.withQuoteUnavailable(failureMessage);
             })
             .orElse(null);
 
-        if (updated != null) {
+        if (applied.get()) {
+            pendingQuoteTasks.remove(playerId);
+        }
+
+        if (updated != null && applied.get()) {
             rerenderTradeIfVisible(playerId, updated);
         }
     }

@@ -23,13 +23,16 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.scheduler.BukkitScheduler;
+import org.bukkit.scheduler.BukkitTask;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -496,6 +499,80 @@ class MarketGuiServiceTest {
             assertFalse(updated.executingBuy());
             assertFalse(updated.executingSell());
         }
+    }
+
+    @Test
+    void staleQuoteResultDoesNotClearNewerPendingQuoteTask() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakeOfflinePlayer(playerId)),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                registry,
+                new YamlConfiguration()
+        );
+        MarketSession staleSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(2);
+        MarketSession currentSession = staleSession.withQuantityPending(3);
+        registry.put(playerId, currentSession);
+        BukkitTask newerTask = fakeTask();
+        pendingQuoteTasks(guiService).put(playerId, newerTask);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applyQuoteResult",
+                UUID.class,
+                MarketSession.class,
+                MarketQuotePair.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+                guiService,
+                playerId,
+                staleSession,
+                new MarketQuotePair(
+                        new MarketQuoteResult(MarketQuoteSide.BUY, 2, "9.6", "4.8", "coins", "old-buy", "snapshot-v1"),
+                        new MarketQuoteResult(MarketQuoteSide.SELL, 2, "8.2", "4.1", "coins", "old-sell", "snapshot-v1")
+                )
+        );
+
+        assertTrue(pendingQuoteTasks(guiService).get(playerId) == newerTask);
+        assertEquals(currentSession, registry.get(playerId).orElseThrow());
+    }
+
+    @Test
+    void staleQuoteFailureDoesNotClearNewerPendingQuoteTask() throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakeOfflinePlayer(playerId)),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                new FakeInventoryAccess(),
+                registry,
+                new YamlConfiguration()
+        );
+        MarketSession staleSession = MarketSession.tradeView("farming", "wheat", false)
+                .withQuantityPending(2);
+        MarketSession currentSession = staleSession.withQuantityPending(3);
+        registry.put(playerId, currentSession);
+        BukkitTask newerTask = fakeTask();
+        pendingQuoteTasks(guiService).put(playerId, newerTask);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+                "applyQuoteFailure",
+                UUID.class,
+                MarketSession.class,
+                String.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, playerId, staleSession, "&cQuote failed.");
+
+        assertTrue(pendingQuoteTasks(guiService).get(playerId) == newerTask);
+        assertEquals(currentSession, registry.get(playerId).orElseThrow());
     }
 
     @Test
@@ -1163,6 +1240,21 @@ class MarketGuiServiceTest {
                     case "getDataFolder" -> dataFolder;
                     default -> primitiveDefault(method.getReturnType());
                 }
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<UUID, BukkitTask> pendingQuoteTasks(MarketGuiService guiService) throws Exception {
+        Field field = MarketGuiService.class.getDeclaredField("pendingQuoteTasks");
+        field.setAccessible(true);
+        return (Map<UUID, BukkitTask>) field.get(guiService);
+    }
+
+    private BukkitTask fakeTask() {
+        return (BukkitTask) Proxy.newProxyInstance(
+                BukkitTask.class.getClassLoader(),
+                new Class[]{BukkitTask.class},
+                (proxy, method, args) -> primitiveDefault(method.getReturnType())
         );
     }
 
