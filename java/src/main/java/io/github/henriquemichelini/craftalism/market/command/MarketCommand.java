@@ -53,7 +53,7 @@ public final class MarketCommand implements CommandExecutor {
         return true;
     }
 
-    private void handleResult(
+    void handleResult(
         Player player,
         MarketBrowseSnapshotLoadResult result,
         Throwable error
