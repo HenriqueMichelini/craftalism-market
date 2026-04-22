@@ -1299,6 +1299,12 @@ public final class MarketGuiService {
                     )
                 ) {
                     remaining.add(settlement);
+                    logDeferredSettlementStillPending(
+                        player.getUniqueId(),
+                        settlement
+                    );
+                } else {
+                    logDeferredSettlementApplied(player.getUniqueId(), settlement);
                 }
                 continue;
             }
@@ -1314,6 +1320,10 @@ public final class MarketGuiService {
                     0
                 );
                 remaining.add(settlement);
+                logDeferredSettlementStillPending(
+                    player.getUniqueId(),
+                    settlement
+                );
                 continue;
             }
 
@@ -1325,6 +1335,12 @@ public final class MarketGuiService {
                 )
             ) {
                 remaining.add(settlement);
+                logDeferredSettlementStillPending(
+                    player.getUniqueId(),
+                    settlement
+                );
+            } else {
+                logDeferredSettlementApplied(player.getUniqueId(), settlement);
             }
         }
 
@@ -1425,6 +1441,62 @@ public final class MarketGuiService {
             player,
             sellRemovalFailurePlayerMessage(material, result, removed)
         );
+    }
+
+    private void logDeferredSettlementApplied(
+        UUID playerId,
+        DeferredSettlement settlement
+    ) {
+        if (plugin == null) {
+            return;
+        }
+
+        plugin
+            .getLogger()
+            .info(
+                "Applied deferred market " +
+                    settlement.side().name().toLowerCase() +
+                    " settlement for player " +
+                    playerId +
+                    ": item=" +
+                    settlement.material().name() +
+                    ", executed=" +
+                    settlement.result().executedQuantity() +
+                    ", settled=" +
+                    settlement.result().totalPrice() +
+                    " " +
+                    settlement.result().currency() +
+                    ", snapshotVersion=" +
+                    settlement.result().snapshotVersion()
+            );
+    }
+
+    private void logDeferredSettlementStillPending(
+        UUID playerId,
+        DeferredSettlement settlement
+    ) {
+        if (plugin == null) {
+            return;
+        }
+
+        plugin
+            .getLogger()
+            .severe(
+                "Deferred market " +
+                    settlement.side().name().toLowerCase() +
+                    " settlement remains queued for player " +
+                    playerId +
+                    ": item=" +
+                    settlement.material().name() +
+                    ", executed=" +
+                    settlement.result().executedQuantity() +
+                    ", settled=" +
+                    settlement.result().totalPrice() +
+                    " " +
+                    settlement.result().currency() +
+                    ", snapshotVersion=" +
+                    settlement.result().snapshotVersion()
+            );
     }
 
     private DeferredSettlementStore createDeferredSettlementStore(

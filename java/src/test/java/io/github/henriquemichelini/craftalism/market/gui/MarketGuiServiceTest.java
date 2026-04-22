@@ -230,6 +230,40 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void playerJoinLogsAppliedDeferredSettlement() {
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        UUID playerId = UUID.randomUUID();
+        TestLogger testLogger = new TestLogger();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakePlayer(playerId), testLogger.logger()),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                new MarketSessionRegistry(),
+                new YamlConfiguration()
+        );
+
+        guiService.queueDeferredSettlement(
+                playerId,
+                new MarketGuiService.DeferredSettlement(
+                        MarketQuoteSide.BUY,
+                        Material.WHEAT,
+                        new MarketExecuteResult(5, "20.5", "4.1", "coins", "snapshot-v7")
+                )
+        );
+
+        guiService.handlePlayerJoin(fakePlayer(playerId));
+
+        assertTrue(testLogger.messages(Level.INFO).stream().anyMatch(message ->
+                message.contains("Applied deferred market buy settlement for player " + playerId)
+                        && message.contains("item=WHEAT")
+                        && message.contains("executed=5")
+                        && message.contains("snapshotVersion=snapshot-v7")
+        ));
+    }
+
+    @Test
     void playerJoinAppliesDeferredSellSettlement() {
         FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
         inventoryAccess.setQuantity(Material.WHEAT, 4);
@@ -323,6 +357,40 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void failedDeferredSellSettlementLogsStillQueuedState() {
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        inventoryAccess.setQuantity(Material.WHEAT, 2);
+        UUID playerId = UUID.randomUUID();
+        TestLogger testLogger = new TestLogger();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakePlayer(playerId), testLogger.logger(), tempDir.toFile()),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                new MarketSessionRegistry(),
+                configWithSettlementMessages()
+        );
+        guiService.queueDeferredSettlement(
+                playerId,
+                new MarketGuiService.DeferredSettlement(
+                        MarketQuoteSide.SELL,
+                        Material.WHEAT,
+                        new MarketExecuteResult(4, "16.4", "4.1", "coins", "snapshot-v7")
+                )
+        );
+
+        guiService.handlePlayerJoin(fakePlayer(playerId));
+
+        assertTrue(testLogger.messages(Level.SEVERE).stream().anyMatch(message ->
+                message.contains("Deferred market sell settlement remains queued for player " + playerId)
+                        && message.contains("item=WHEAT")
+                        && message.contains("executed=4")
+                        && message.contains("snapshotVersion=snapshot-v7")
+        ));
+    }
+
+    @Test
     void staleAndExpiredBuyRejectionsRequeueFreshQuotes() throws Exception {
         for (String code : List.of("STALE_QUOTE", "QUOTE_EXPIRED")) {
             YamlConfiguration config = new YamlConfiguration();
@@ -354,6 +422,60 @@ class MarketGuiServiceTest {
 
             Method method = MarketGuiService.class.getDeclaredMethod(
                     "applyBuyRejection",
+                    UUID.class,
+                    MarketSession.class,
+                    MarketExecuteRejectedException.class
+            );
+            method.setAccessible(true);
+            method.invoke(
+                    guiService,
+                    playerId,
+                    executingSession,
+                    new MarketExecuteRejectedException(code, "Rejected", "snapshot-v2")
+            );
+
+            MarketSession updated = registry.get(playerId).orElseThrow();
+            assertEquals(5, updated.quantity());
+            assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
+            assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+            assertEquals(executingSession.quoteRequestVersion() + 1, updated.quoteRequestVersion());
+            assertFalse(updated.executingBuy());
+            assertFalse(updated.executingSell());
+        }
+    }
+
+    @Test
+    void staleAndExpiredSellRejectionsRequeueFreshQuotes() throws Exception {
+        for (String code : List.of("STALE_QUOTE", "QUOTE_EXPIRED")) {
+            YamlConfiguration config = new YamlConfiguration();
+            config.set("messages.rejections.STALE_QUOTE", "&eThat quote is stale. Refreshing now.");
+            config.set("messages.rejections.QUOTE_EXPIRED", "&eThat quote expired. Refreshing now.");
+
+            MarketSessionRegistry registry = new MarketSessionRegistry();
+            UUID playerId = UUID.randomUUID();
+            Player player = fakeOfflinePlayer(playerId);
+            Plugin plugin = fakePlugin(player);
+            MarketGuiService guiService = new MarketGuiService(
+                    plugin,
+                    new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                    (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                    (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                    new FakeInventoryAccess(),
+                    registry,
+                    config
+            );
+
+            MarketSession executingSession = MarketSession.tradeView("farming", "wheat", false)
+                    .withQuantityPending(5)
+                    .withQuotePair(new MarketQuotePair(
+                            new MarketQuoteResult(MarketQuoteSide.BUY, 5, "24.0", "4.8", "coins", "buy-token", "snapshot-v1"),
+                            new MarketQuoteResult(MarketQuoteSide.SELL, 5, "20.5", "4.1", "coins", "sell-token", "snapshot-v1")
+                    ))
+                    .withExecutionPending(MarketQuoteSide.SELL);
+            registry.put(playerId, executingSession);
+
+            Method method = MarketGuiService.class.getDeclaredMethod(
+                    "applySellRejection",
                     UUID.class,
                     MarketSession.class,
                     MarketExecuteRejectedException.class
