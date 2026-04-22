@@ -1,5 +1,6 @@
 package io.github.henriquemichelini.craftalism.market.gui;
 
+import io.github.henriquemichelini.craftalism.market.api.MarketApiRequestException;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteClient;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteRejectedException;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
@@ -930,8 +931,26 @@ public final class MarketGuiService {
                     ", error=" +
                     rootCause.getClass().getSimpleName() +
                     ": " +
-                    rootCause.getMessage()
+                    rootCause.getMessage() +
+                    apiResponseDetails(rootCause)
             );
+    }
+
+    private String apiResponseDetails(Throwable error) {
+        if (!(error instanceof MarketApiRequestException requestException)) {
+            return "";
+        }
+
+        String responseBody = requestException.responseBody();
+        if (responseBody == null || responseBody.isBlank()) {
+            return ", responseBody=<empty>";
+        }
+
+        String compactBody = responseBody.replaceAll("\\s+", " ").trim();
+        if (compactBody.length() > 500) {
+            compactBody = compactBody.substring(0, 500) + "...";
+        }
+        return ", responseBody=" + compactBody;
     }
 
     private Throwable rootCause(Throwable error) {
