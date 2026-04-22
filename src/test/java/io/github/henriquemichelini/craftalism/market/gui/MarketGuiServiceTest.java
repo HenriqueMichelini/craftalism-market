@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -40,8 +41,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.io.TempDir;
 
 class MarketGuiServiceTest {
+    @TempDir
+    Path tempDir;
+
     @Test
     void closeSessionRemovesStoredSession() {
         MarketSessionRegistry registry = new MarketSessionRegistry();
@@ -245,6 +250,76 @@ class MarketGuiServiceTest {
 
         assertEquals(0, guiService.deferredSettlementCount(playerId));
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
+    }
+
+    @Test
+    void deferredSettlementPersistsAcrossServiceRecreation() {
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        UUID playerId = UUID.randomUUID();
+
+        MarketGuiService firstService = new MarketGuiService(
+                fakePlugin(fakeOfflinePlayer(playerId), Logger.getLogger("first"), tempDir.toFile()),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                new MarketSessionRegistry(),
+                new YamlConfiguration()
+        );
+        firstService.queueDeferredSettlement(
+                playerId,
+                new MarketGuiService.DeferredSettlement(
+                        MarketQuoteSide.BUY,
+                        Material.WHEAT,
+                        new MarketExecuteResult(6, "24.6", "4.1", "coins", "snapshot-v8")
+                )
+        );
+
+        MarketGuiService recreatedService = new MarketGuiService(
+                fakePlugin(fakePlayer(playerId), Logger.getLogger("second"), tempDir.toFile()),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                new MarketSessionRegistry(),
+                new YamlConfiguration()
+        );
+
+        assertEquals(1, recreatedService.deferredSettlementCount(playerId));
+
+        recreatedService.handlePlayerJoin(fakePlayer(playerId));
+
+        assertEquals(0, recreatedService.deferredSettlementCount(playerId));
+        assertEquals(6, inventoryAccess.quantity(Material.WHEAT));
+    }
+
+    @Test
+    void failedDeferredSellSettlementRemainsQueued() {
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        inventoryAccess.setQuantity(Material.WHEAT, 2);
+        UUID playerId = UUID.randomUUID();
+        MarketGuiService guiService = new MarketGuiService(
+                fakePlugin(fakePlayer(playerId), Logger.getLogger("failed-sell"), tempDir.toFile()),
+                new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+                (itemId, side, quantity, snapshotVersion) -> { throw new AssertionError(); },
+                (itemId, side, quantity, quoteToken, snapshotVersion) -> { throw new AssertionError(); },
+                inventoryAccess,
+                new MarketSessionRegistry(),
+                configWithSettlementMessages()
+        );
+        guiService.queueDeferredSettlement(
+                playerId,
+                new MarketGuiService.DeferredSettlement(
+                        MarketQuoteSide.SELL,
+                        Material.WHEAT,
+                        new MarketExecuteResult(4, "16.4", "4.1", "coins", "snapshot-v7")
+                )
+        );
+
+        guiService.handlePlayerJoin(fakePlayer(playerId));
+
+        assertEquals(1, guiService.deferredSettlementCount(playerId));
+        assertEquals(2, inventoryAccess.quantity(Material.WHEAT));
     }
 
     @Test
@@ -673,11 +748,7 @@ class MarketGuiServiceTest {
             YamlConfiguration config,
             MarketInventoryAccess inventoryAccess
     ) {
-        config.set("messages.rejections.ITEM_BLOCKED", "&cThis item is currently blocked.");
-        config.set("messages.rejections.ITEM_NOT_OPERATING", "&cThis item is not operating right now.");
-        config.set("messages.rejections.UNKNOWN_ITEM", "&cThat item is no longer available.");
-        config.set("messages.sell-removal-failed", "&cSell completed for {total}, but local removal only removed {removed}/{executed} {item}. Missing: {missing}. Contact staff.");
-        config.set("messages.sell-removal-failed-log", "Market sell compensation issue for player {playerId}: item={item}, executed={executed}, removed={removed}, missing={missing}, settled={total}, snapshotVersion={snapshotVersion}");
+        configWithSettlementMessages(config);
 
         return new MarketGuiService(
                 null,
@@ -688,6 +759,19 @@ class MarketGuiServiceTest {
                 new MarketSessionRegistry(),
                 config
         );
+    }
+
+    private YamlConfiguration configWithSettlementMessages() {
+        return configWithSettlementMessages(new YamlConfiguration());
+    }
+
+    private YamlConfiguration configWithSettlementMessages(YamlConfiguration config) {
+        config.set("messages.rejections.ITEM_BLOCKED", "&cThis item is currently blocked.");
+        config.set("messages.rejections.ITEM_NOT_OPERATING", "&cThis item is not operating right now.");
+        config.set("messages.rejections.UNKNOWN_ITEM", "&cThat item is no longer available.");
+        config.set("messages.sell-removal-failed", "&cSell completed for {total}, but local removal only removed {removed}/{executed} {item}. Missing: {missing}. Contact staff.");
+        config.set("messages.sell-removal-failed-log", "Market sell compensation issue for player {playerId}: item={item}, executed={executed}, removed={removed}, missing={missing}, settled={total}, snapshotVersion={snapshotVersion}");
+        return config;
     }
 
     private MarketBrowseSnapshotProvider sampleProvider() {
@@ -818,6 +902,10 @@ class MarketGuiServiceTest {
     }
 
     private Plugin fakePlugin(Player player, Logger logger) {
+        return fakePlugin(player, logger, null);
+    }
+
+    private Plugin fakePlugin(Player player, Logger logger, java.io.File dataFolder) {
         BukkitScheduler scheduler = (BukkitScheduler) Proxy.newProxyInstance(
                 BukkitScheduler.class.getClassLoader(),
                 new Class[]{BukkitScheduler.class},
@@ -845,6 +933,7 @@ class MarketGuiServiceTest {
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getServer" -> server;
                     case "getLogger" -> logger;
+                    case "getDataFolder" -> dataFolder;
                     default -> primitiveDefault(method.getReturnType());
                 }
         );

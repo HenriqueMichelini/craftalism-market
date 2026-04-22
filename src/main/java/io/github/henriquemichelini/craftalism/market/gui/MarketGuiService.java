@@ -18,10 +18,12 @@ import io.github.henriquemichelini.craftalism.market.session.MarketScreen;
 import io.github.henriquemichelini.craftalism.market.session.MarketSession;
 import io.github.henriquemichelini.craftalism.market.session.MarketSessionRegistry;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -60,6 +62,7 @@ public final class MarketGuiService {
         new ConcurrentHashMap<>();
     private final Map<UUID, List<DeferredSettlement>> deferredSettlements =
         new ConcurrentHashMap<>();
+    private final DeferredSettlementStore deferredSettlementStore;
 
     public MarketGuiService(
         Plugin plugin,
@@ -77,6 +80,8 @@ public final class MarketGuiService {
         this.inventoryService = inventoryService;
         this.sessionRegistry = sessionRegistry;
         this.config = config;
+        this.deferredSettlementStore = createDeferredSettlementStore(plugin);
+        deferredSettlements.putAll(loadDeferredSettlements());
     }
 
     public void openMainMenu(Player player, MarketBrowseSnapshot snapshot) {
@@ -1257,6 +1262,7 @@ public final class MarketGuiService {
             updated.add(settlement);
             return List.copyOf(updated);
         });
+        persistDeferredSettlements();
 
         if (plugin != null) {
             plugin
@@ -1283,17 +1289,53 @@ public final class MarketGuiService {
             return;
         }
 
+        List<DeferredSettlement> remaining = new ArrayList<>();
         for (DeferredSettlement settlement : settlements) {
             if (settlement.side() == MarketQuoteSide.BUY) {
-                applyBuySettlement(player, settlement.material(), settlement.result());
+                if (
+                    !applyBuySettlement(
+                        player,
+                        settlement.material(),
+                        settlement.result()
+                    )
+                ) {
+                    remaining.add(settlement);
+                }
                 continue;
             }
 
-            applySellSettlement(player, settlement.material(), settlement.result());
+            if (
+                inventoryService.count(player, settlement.material()) <
+                    settlement.result().executedQuantity()
+            ) {
+                reportSellRemovalFailure(
+                    player,
+                    settlement.material(),
+                    settlement.result(),
+                    0
+                );
+                remaining.add(settlement);
+                continue;
+            }
+
+            if (
+                !applySellSettlement(
+                    player,
+                    settlement.material(),
+                    settlement.result()
+                )
+            ) {
+                remaining.add(settlement);
+            }
         }
+
+        if (!remaining.isEmpty()) {
+            deferredSettlements.put(player.getUniqueId(), List.copyOf(remaining));
+        }
+        persistDeferredSettlements();
     }
 
-    private void applyBuySettlement(
+    private boolean applyBuySettlement(
         Player player,
         Material material,
         MarketExecuteResult result
@@ -1320,7 +1362,7 @@ public final class MarketGuiService {
                         Integer.toString(result.executedQuantity() - delivered)
                     )
             );
-            return;
+            return true;
         }
 
         sendMessage(
@@ -1332,9 +1374,10 @@ public final class MarketGuiService {
                 )
                 .replace("{total}", result.totalPrice() + " " + result.currency())
         );
+        return true;
     }
 
-    private void applySellSettlement(
+    private boolean applySellSettlement(
         Player player,
         Material material,
         MarketExecuteResult result
@@ -1345,23 +1388,8 @@ public final class MarketGuiService {
             result.executedQuantity()
         );
         if (removed != result.executedQuantity()) {
-            if (plugin != null) {
-                plugin
-                    .getLogger()
-                    .severe(
-                        sellRemovalFailureLogMessage(
-                            player.getUniqueId(),
-                            material,
-                            result,
-                            removed
-                        )
-                    );
-            }
-            sendMessage(
-                player,
-                sellRemovalFailurePlayerMessage(material, result, removed)
-            );
-            return;
+            reportSellRemovalFailure(player, material, result, removed);
+            return false;
         }
 
         sendMessage(
@@ -1373,6 +1401,63 @@ public final class MarketGuiService {
                 )
                 .replace("{total}", result.totalPrice() + " " + result.currency())
         );
+        return true;
+    }
+
+    private void reportSellRemovalFailure(
+        Player player,
+        Material material,
+        MarketExecuteResult result,
+        int removed
+    ) {
+        if (plugin != null) {
+            plugin
+                .getLogger()
+                .severe(
+                    sellRemovalFailureLogMessage(
+                        player.getUniqueId(),
+                        material,
+                        result,
+                        removed
+                    )
+                );
+        }
+        sendMessage(
+            player,
+            sellRemovalFailurePlayerMessage(material, result, removed)
+        );
+    }
+
+    private DeferredSettlementStore createDeferredSettlementStore(
+        Plugin plugin
+    ) {
+        if (plugin == null || plugin.getDataFolder() == null) {
+            return null;
+        }
+
+        Logger logger = plugin.getLogger() != null
+            ? plugin.getLogger()
+            : Logger.getLogger(MarketGuiService.class.getName());
+        return new DeferredSettlementStore(
+            plugin.getDataFolder().toPath().resolve("deferred-settlements.json"),
+            logger
+        );
+    }
+
+    private Map<UUID, List<DeferredSettlement>> loadDeferredSettlements() {
+        if (deferredSettlementStore == null) {
+            return Map.of();
+        }
+
+        return new HashMap<>(deferredSettlementStore.load());
+    }
+
+    private void persistDeferredSettlements() {
+        if (deferredSettlementStore == null) {
+            return;
+        }
+
+        deferredSettlementStore.save(deferredSettlements);
     }
 
     private int rowsFor(int itemCount) {

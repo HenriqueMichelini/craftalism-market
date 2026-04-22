@@ -9,16 +9,14 @@ import java.util.Map;
 
 public final class MarketInventoryService implements MarketInventoryAccess {
     public int count(Player player, Material material) {
-        return count(player.getInventory().getContents(), material);
+        return count(player.getInventory().getStorageContents(), material);
     }
 
     public int remove(Player player, Material material, int quantity) {
         PlayerInventory inventory = player.getInventory();
-        ItemStack[] contents = inventory.getContents();
+        ItemStack[] contents = inventory.getStorageContents();
         int removed = remove(contents, material, quantity);
-        for (int slot = 0; slot < contents.length && slot < inventory.getSize(); slot++) {
-            inventory.setItem(slot, contents[slot]);
-        }
+        inventory.setStorageContents(contents);
 
         return removed;
     }
