@@ -36,7 +36,9 @@ public final class MarketBearerTokenProviderFactory {
         return new StaticMarketBearerTokenProvider("");
     }
 
-    static boolean hasOAuthConfiguration(MarketApiConfiguration configuration) {
+    public static boolean hasOAuthConfiguration(
+        MarketApiConfiguration configuration
+    ) {
         return (
             !configuration.clientId().isBlank() &&
             !configuration.clientSecret().isBlank() &&

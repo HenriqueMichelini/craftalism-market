@@ -51,6 +51,7 @@ public final class MarketPlugin extends JavaPlugin {
                     apiConfiguration.baseUrl() +
                     apiConfiguration.executePath()
             );
+        logAuthConfiguration(apiConfiguration);
         MarketBearerTokenProvider bearerTokenProvider =
             MarketBearerTokenProviderFactory.create(
                 apiConfiguration,
@@ -111,5 +112,38 @@ public final class MarketPlugin extends JavaPlugin {
             .getPluginManager()
             .registerEvents(new MarketInventoryListener(guiService), this);
         getLogger().info("Craftalism Market read-only browsing is enabled.");
+    }
+
+    private void logAuthConfiguration(
+        MarketApiConfiguration apiConfiguration
+    ) {
+        if (
+            MarketBearerTokenProviderFactory.hasOAuthConfiguration(
+                apiConfiguration
+            )
+        ) {
+            String scopes = apiConfiguration.scopes().isBlank()
+                ? "<none>"
+                : apiConfiguration.scopes();
+            getLogger()
+                .info(
+                    "Craftalism Market API auth: OAuth2 client credentials enabled; scopes=" +
+                        scopes
+                );
+            return;
+        }
+
+        if (!apiConfiguration.authToken().isBlank()) {
+            getLogger()
+                .info(
+                    "Craftalism Market API auth: static bearer token configured."
+                );
+            return;
+        }
+
+        getLogger()
+            .warning(
+                "Craftalism Market API auth is not configured; protected quote/execute endpoints may return 403."
+            );
     }
 }

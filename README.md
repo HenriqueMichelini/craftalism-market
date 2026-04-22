@@ -35,4 +35,6 @@ The plugin consumes Craftalism API and auth settings from environment variables 
 
 When OAuth2 client credentials are configured, the plugin mints and caches bearer tokens internally and uses them for snapshot, quote, and execute calls. `market-api.auth-token` remains available only as a static-token fallback.
 
+If `.env.local` is sourced by a shell script, quote multi-scope values so the space stays inside the variable, for example `MINECRAFT_CLIENT_SCOPES="api:read api:write"`.
+
 The remaining hardening work is around compensation handling, broader GUI/session coverage, and continued alignment with API contract evolution.
