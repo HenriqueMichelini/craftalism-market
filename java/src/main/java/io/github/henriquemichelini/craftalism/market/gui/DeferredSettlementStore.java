@@ -8,8 +8,10 @@ import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,7 +64,11 @@ final class DeferredSettlementStore {
 
     void save(Map<UUID, List<MarketGuiService.DeferredSettlement>> settlements) {
         try {
-            Files.createDirectories(path.getParent());
+            Path parent = path.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+
             JsonObject root = new JsonObject();
             JsonArray array = new JsonArray();
             settlements.forEach((playerId, playerSettlements) ->
@@ -71,7 +77,7 @@ final class DeferredSettlementStore {
                 )
             );
             root.add("settlements", array);
-            Files.writeString(path, root.toString(), StandardCharsets.UTF_8);
+            writeAtomically(root.toString());
         } catch (IOException error) {
             logger.severe(
                 "Unable to persist deferred market settlements to " +
@@ -79,6 +85,32 @@ final class DeferredSettlementStore {
                     ": " +
                     error.getMessage()
             );
+        }
+    }
+
+    private void writeAtomically(String content) throws IOException {
+        Path tempPath = path.resolveSibling(path.getFileName() + ".tmp");
+        Files.writeString(tempPath, content, StandardCharsets.UTF_8);
+        try {
+            Files.move(
+                tempPath,
+                path,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+        } catch (AtomicMoveNotSupportedException error) {
+            Files.move(
+                tempPath,
+                path,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+        } catch (IOException error) {
+            try {
+                Files.deleteIfExists(tempPath);
+            } catch (IOException cleanupError) {
+                error.addSuppressed(cleanupError);
+            }
+            throw error;
         }
     }
 
