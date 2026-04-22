@@ -917,10 +917,9 @@ public final class MarketGuiService {
                 playerId,
                 new DeferredSettlement(MarketQuoteSide.SELL, material, result)
             );
-            return;
+        } else {
+            applySellSettlement(player, material, result);
         }
-
-        applySellSettlement(player, material, result);
 
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
