@@ -14,8 +14,8 @@ The repository currently provides the initial snapshot, quote, and trade-executi
 - `/market` command entry
 - API-backed snapshot browsing with local cached fallback
 - category and item browsing GUIs
-- trade GUI quantity controls with debounced quote refresh
-- buy execution from the latest quote with rejection-code handling
+- trade GUI quantity controls without background quote refresh
+- buy execution with on-click quote acquisition and rejection-code handling
 - plugin-local item delivery after successful buys, including overflow drops
 - sell execution with plugin-local inventory validation and post-success item removal
 - in-memory session tracking and cleanup on inventory close/player quit

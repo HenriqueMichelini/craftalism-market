@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MarketSessionTest {
     @Test
     void transitionsTradeSessionFromPendingToAvailable() {
-        MarketSession session = MarketSession.tradeView("farming", "wheat", false).withQuantityPending(4);
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false).withQuantity(4);
         MarketQuotePair quotes = new MarketQuotePair(
                 new MarketQuoteResult(MarketQuoteSide.BUY, 4, "19.8", "4.95", "coins", "buy-token", "snapshot-buy"),
                 new MarketQuoteResult(MarketQuoteSide.SELL, 4, "16.4", "4.10", "coins", "sell-token", "snapshot-sell")
@@ -29,11 +29,11 @@ class MarketSessionTest {
     }
 
     @Test
-    void startsLiveTradeSessionsInPendingState() {
+    void startsLiveTradeSessionsReadyWithoutRequestingQuote() {
         MarketSession session = MarketSession.tradeView("farming", "wheat", false);
 
-        assertEquals(MarketQuoteStatus.PENDING, session.quoteStatus());
-        assertEquals("Refreshing quote...", session.quoteStatusMessage());
+        assertEquals(MarketQuoteStatus.AVAILABLE, session.quoteStatus());
+        assertEquals("Ready to trade", session.quoteStatusMessage());
     }
 
     @Test
@@ -45,19 +45,19 @@ class MarketSessionTest {
     }
 
     @Test
-    void quantityChangeSupersedesExistingQuoteState() {
+    void quantityChangeClearsExistingQuoteStateWithoutRequestingQuote() {
         MarketSession session = MarketSession.tradeView("farming", "wheat", false)
                 .withQuotePair(new MarketQuotePair(
                         new MarketQuoteResult(MarketQuoteSide.BUY, 1, "4.8", "4.8", "coins", "buy-token", "snapshot-buy"),
                         new MarketQuoteResult(MarketQuoteSide.SELL, 1, "4.1", "4.1", "coins", "sell-token", "snapshot-sell")
                 ));
 
-        MarketSession updated = session.withQuantityPending(6);
+        MarketSession updated = session.withQuantity(6);
 
         assertEquals(6, updated.quantity());
-        assertEquals(session.quoteRequestVersion() + 1, updated.quoteRequestVersion());
-        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
-        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertEquals(session.quoteRequestVersion(), updated.quoteRequestVersion());
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
         assertEquals(null, updated.buyQuotedTotal());
         assertEquals(null, updated.sellQuoteToken());
         assertFalse(updated.executingBuy());
@@ -66,7 +66,7 @@ class MarketSessionTest {
 
     @Test
     void readOnlyPreviewPreservesSelectionButDisablesTrading() {
-        MarketSession session = MarketSession.tradeView("farming", "wheat", false).withQuantityPending(3);
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false).withQuantity(3);
 
         MarketSession updated = session.asReadOnlyPreview();
 
@@ -77,15 +77,15 @@ class MarketSessionTest {
     }
 
     @Test
-    void liveQuotePendingLeavesReadOnlyModeAndRequestsNewQuote() {
+    void liveModeLeavesReadOnlyModeWithoutRequestingQuote() {
         MarketSession session = MarketSession.tradeView("farming", "wheat", true);
 
-        MarketSession updated = session.asLiveQuotePending();
+        MarketSession updated = session.asLiveTradingAvailable();
 
         assertFalse(updated.readOnly());
-        assertEquals(session.quoteRequestVersion() + 1, updated.quoteRequestVersion());
-        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
-        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
+        assertEquals(session.quoteRequestVersion(), updated.quoteRequestVersion());
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
     }
 
     @Test
@@ -107,8 +107,8 @@ class MarketSessionTest {
     @Test
     void latestQuantityChangeInvalidatesEarlierTradeRequestVersion() {
         MarketSession initial = MarketSession.tradeView("farming", "wheat", false);
-        MarketSession afterFirstChange = initial.withQuantityPending(3);
-        MarketSession afterSecondChange = afterFirstChange.withQuantityPending(7);
+        MarketSession afterFirstChange = initial.withQuantity(3);
+        MarketSession afterSecondChange = afterFirstChange.withQuantity(7);
 
         assertFalse(afterSecondChange.matchesTradeRequest(
                 "farming",

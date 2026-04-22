@@ -37,8 +37,8 @@ public record MarketSession(
                 readOnly,
                 1,
                 0,
-                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.PENDING,
-                readOnly ? "Cached preview only" : "Refreshing quote...",
+                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.AVAILABLE,
+                readOnly ? "Cached preview only" : "Ready to trade",
                 null,
                 null,
                 null,
@@ -51,16 +51,16 @@ public record MarketSession(
         );
     }
 
-    public MarketSession withQuantityPending(int quantity) {
+    public MarketSession withQuantity(int quantity) {
         return new MarketSession(
                 screen,
                 selectedCategoryId,
                 selectedItemId,
                 readOnly,
                 quantity,
-                quoteRequestVersion + 1,
-                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.PENDING,
-                readOnly ? "Cached preview only" : "Refreshing quote...",
+                quoteRequestVersion,
+                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.AVAILABLE,
+                readOnly ? "Cached preview only" : "Ready to trade",
                 null,
                 null,
                 null,
@@ -116,16 +116,16 @@ public record MarketSession(
         );
     }
 
-    public MarketSession asLiveQuotePending() {
+    public MarketSession asLiveTradingAvailable() {
         return new MarketSession(
                 screen,
                 selectedCategoryId,
                 selectedItemId,
                 false,
                 quantity,
-                quoteRequestVersion + 1,
-                MarketQuoteStatus.PENDING,
-                "Refreshing quote...",
+                quoteRequestVersion,
+                MarketQuoteStatus.AVAILABLE,
+                "Ready to trade",
                 null,
                 null,
                 null,
