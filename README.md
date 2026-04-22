@@ -31,7 +31,7 @@ The plugin consumes Craftalism API and auth settings from environment variables 
 | `AUTH_TOKEN_PATH` | Token endpoint path. Defaults to `/oauth2/token`. |
 | `MINECRAFT_CLIENT_ID` | OAuth2 client ID for the Minecraft server client. |
 | `MINECRAFT_CLIENT_SECRET` or `CRAFTALISM_API_KEY` | OAuth2 client secret. `MINECRAFT_CLIENT_SECRET` has priority when both are set. |
-| `MINECRAFT_CLIENT_SCOPES` | Optional client-credentials scope string, such as `api:write`. |
+| `MINECRAFT_CLIENT_SCOPES` | Client-credentials scope string. Defaults to `api:write` when unset. |
 
 When OAuth2 client credentials are configured, the plugin mints and caches bearer tokens internally and uses them for snapshot, quote, and execute calls. `market-api.auth-token` remains available only as a static-token fallback.
 

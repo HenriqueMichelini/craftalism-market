@@ -54,6 +54,32 @@ class MarketApiConfigurationResolverTest {
         assertEquals("/api/market/snapshot", configuration.snapshotPath());
         assertEquals("/api/market/quotes", configuration.quotePath());
         assertEquals("/api/market/execute", configuration.executePath());
+        assertEquals("api:write", configuration.scopes());
+    }
+
+    @Test
+    void defaultsOAuthScopeToApiWrite() {
+        MarketApiConfiguration configuration = new MarketApiConfigurationResolver(
+            new YamlConfiguration(),
+            new MapMarketEnvironment(Map.of()),
+            Logger.getLogger(MarketApiConfigurationResolverTest.class.getName())
+        ).resolve();
+
+        assertEquals("api:write", configuration.scopes());
+    }
+
+    @Test
+    void keepsExplicitOAuthScopeOverride() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("market-api.auth.scopes", "market:trade");
+
+        MarketApiConfiguration configuration = new MarketApiConfigurationResolver(
+            config,
+            new MapMarketEnvironment(Map.of()),
+            Logger.getLogger(MarketApiConfigurationResolverTest.class.getName())
+        ).resolve();
+
+        assertEquals("market:trade", configuration.scopes());
     }
 
     @Test

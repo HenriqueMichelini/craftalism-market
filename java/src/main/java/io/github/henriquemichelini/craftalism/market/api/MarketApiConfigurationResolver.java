@@ -11,6 +11,7 @@ public final class MarketApiConfigurationResolver {
     private static final String DEFAULT_QUOTE_PATH = "/api/market/quotes";
     private static final String DEFAULT_EXECUTE_PATH = "/api/market/execute";
     private static final String DEFAULT_TOKEN_PATH = "/oauth2/token";
+    private static final String DEFAULT_CLIENT_SCOPES = "api:write";
 
     private final FileConfiguration config;
     private final MarketEnvironment environment;
@@ -86,7 +87,11 @@ public final class MarketApiConfigurationResolver {
             blankToEmpty(
                 firstNonBlank(
                     environment.get("MINECRAFT_CLIENT_SCOPES"),
-                    config.getString("market-api.auth.scopes", "")
+                    config.getString(
+                        "market-api.auth.scopes",
+                        DEFAULT_CLIENT_SCOPES
+                    ),
+                    DEFAULT_CLIENT_SCOPES
                 )
             ),
             Duration.ofMillis(

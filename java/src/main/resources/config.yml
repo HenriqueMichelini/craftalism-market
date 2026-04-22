@@ -40,7 +40,7 @@ market-api:
     client-id: ""
     client-secret: ""
     api-key: ""
-    scopes: ""
+    scopes: "api:write"
   connect-timeout-ms: 3000
   request-timeout-ms: 5000
   quote-debounce-ticks: 6
