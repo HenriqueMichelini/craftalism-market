@@ -45,13 +45,54 @@ public record MarketSession(
                 null,
                 null,
                 null,
-                false
-                ,
+                false,
                 false
         );
     }
 
     public MarketSession withQuantity(int quantity) {
+        return new MarketSession(
+                screen,
+                selectedCategoryId,
+                selectedItemId,
+                readOnly,
+                quantity,
+                quoteRequestVersion + 1,
+                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.PENDING,
+                readOnly ? "Cached preview only" : "Refreshing quote...",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false
+        );
+    }
+
+    public MarketSession withQuoteRefreshPending() {
+        return new MarketSession(
+                screen,
+                selectedCategoryId,
+                selectedItemId,
+                readOnly,
+                quantity,
+                quoteRequestVersion + 1,
+                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.PENDING,
+                readOnly ? "Cached preview only" : "Refreshing quote...",
+                buyQuotedTotal,
+                sellQuotedTotal,
+                buyQuoteToken,
+                sellQuoteToken,
+                buyQuoteSnapshotVersion,
+                sellQuoteSnapshotVersion,
+                false,
+                false
+        );
+    }
+
+    public MarketSession withClearedQuoteState() {
         return new MarketSession(
                 screen,
                 selectedCategoryId,
@@ -67,8 +108,7 @@ public record MarketSession(
                 null,
                 null,
                 null,
-                false
-                ,
+                false,
                 false
         );
     }
@@ -89,8 +129,7 @@ public record MarketSession(
                 null,
                 null,
                 null,
-                false
-                ,
+                false,
                 false
         );
     }

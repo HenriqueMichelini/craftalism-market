@@ -111,7 +111,7 @@ final class MarketGuiRenderer {
         boolean readOnly
     ) {
         List<String> lore = new ArrayList<>();
-        lore.add(colorize("&7Click to request a quote and execute."));
+        lore.add(colorize("&7Click to execute the latest quote."));
         if (quotedTotal != null) {
             lore.add(colorize("&7Latest quoted total: &f" + quotedTotal));
         }

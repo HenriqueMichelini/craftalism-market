@@ -44,6 +44,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitScheduler;
+import org.bukkit.scheduler.BukkitTask;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -1170,7 +1171,7 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void sellQuantityAdjustmentPreservesTradeSessionWithoutRequestingQuote()
+    void sellQuantityAdjustmentRefreshesQuoteForAdjustedQuantity()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
@@ -1189,9 +1190,8 @@ class MarketGuiServiceTest {
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(offlinePlayer),
             snapshotService,
-            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                throw new AssertionError();
-            },
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) ->
+                quote(side, quantity, snapshotVersion),
             (
                 ignoredPlayerId,
                 itemId,
@@ -1248,11 +1248,13 @@ class MarketGuiServiceTest {
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(2, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
         assertEquals(
-            availableSession.quoteRequestVersion(),
+            availableSession.quoteRequestVersion() + 1,
             updated.quoteRequestVersion()
         );
+        assertEquals("buy-token-2", updated.buyQuoteToken());
+        assertEquals("sell-token-2", updated.sellQuoteToken());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -2081,6 +2083,23 @@ class MarketGuiServiceTest {
         return Runnable::run;
     }
 
+    private MarketQuoteResult quote(
+        MarketQuoteSide side,
+        int quantity,
+        String snapshotVersion
+    ) {
+        String prefix = side == MarketQuoteSide.BUY ? "buy" : "sell";
+        return new MarketQuoteResult(
+            side,
+            quantity,
+            Integer.toString(quantity * (side == MarketQuoteSide.BUY ? 5 : 4)),
+            side == MarketQuoteSide.BUY ? "5" : "4",
+            "coins",
+            prefix + "-token-" + quantity,
+            snapshotVersion
+        );
+    }
+
     private Player fakePlayer(UUID playerId) {
         return (Player) Proxy.newProxyInstance(
             Player.class.getClassLoader(),
@@ -2185,6 +2204,10 @@ class MarketGuiServiceTest {
                     ((Runnable) args[1]).run();
                     return null;
                 }
+                if ("runTaskLater".equals(method.getName())) {
+                    ((Runnable) args[1]).run();
+                    return fakeTask();
+                }
                 return primitiveDefault(method.getReturnType());
             }
         );
@@ -2248,6 +2271,14 @@ class MarketGuiServiceTest {
             return '\0';
         }
         return null;
+    }
+
+    private BukkitTask fakeTask() {
+        return (BukkitTask) Proxy.newProxyInstance(
+            BukkitTask.class.getClassLoader(),
+            new Class[] { BukkitTask.class },
+            (proxy, method, args) -> primitiveDefault(method.getReturnType())
+        );
     }
 
     private Object recordValue(Object record, String methodName)
