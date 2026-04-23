@@ -90,8 +90,8 @@ public final class HttpMarketBrowseSnapshotProvider implements MarketBrowseSnaps
                     displayName,
                     parseMaterial(requiredString(itemJson, "iconKey"), categoryId + "." + itemId + ".iconKey"),
                     descriptionList("market-display.items." + itemId + ".description"),
-                    appendCurrency(displayValue(itemJson.get("buyUnitEstimate")), currency),
-                    appendCurrency(displayValue(itemJson.get("sellUnitEstimate")), currency),
+                    appendCurrency(displayMoneyValue(itemJson.get("buyUnitEstimate")), currency),
+                    appendCurrency(displayMoneyValue(itemJson.get("sellUnitEstimate")), currency),
                     formatVariation(displayValue(itemJson.get("variationPercent"))),
                     stockDisplay(itemJson),
                     optionalString(itemJson, "lastUpdatedAt", "Unknown")
@@ -161,6 +161,10 @@ public final class HttpMarketBrowseSnapshotProvider implements MarketBrowseSnaps
         }
 
         return element.getAsString();
+    }
+
+    private String displayMoneyValue(JsonElement element) {
+        return MoneyValueFormatter.normalize(element);
     }
 
     private String appendCurrency(String value, String currency) {

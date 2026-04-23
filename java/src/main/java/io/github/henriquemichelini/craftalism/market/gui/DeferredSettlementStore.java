@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.github.henriquemichelini.craftalism.market.api.MoneyValueFormatter;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import java.io.IOException;
@@ -123,8 +124,8 @@ final class DeferredSettlementStore {
             Material.valueOf(requiredString(settlement, "material")),
             new MarketExecuteResult(
                 requiredInt(result, "executedQuantity"),
-                requiredString(result, "totalPrice"),
-                requiredString(result, "unitPrice"),
+                MoneyValueFormatter.normalize(requiredString(result, "totalPrice")),
+                MoneyValueFormatter.normalize(requiredString(result, "unitPrice")),
                 requiredString(result, "currency"),
                 requiredString(result, "snapshotVersion")
             )

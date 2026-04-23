@@ -45,4 +45,48 @@ class DeferredSettlementStoreTest {
         assertEquals(Map.of(playerId, List.of(settlement)), store.load());
         assertFalse(Files.exists(tempDir.resolve("deferred-settlements.json.tmp")));
     }
+
+    @Test
+    void loadNormalizesFixedPointSettlementAmounts() throws Exception {
+        Path path = tempDir.resolve("deferred-settlements.json");
+        Files.writeString(
+            path,
+            """
+            {
+              "settlements": [
+                {
+                  "playerId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                  "side": "SELL",
+                  "material": "WHEAT",
+                  "result": {
+                    "executedQuantity": 4,
+                    "totalPrice": 164000,
+                    "unitPrice": 41000,
+                    "currency": "coins",
+                    "snapshotVersion": "snapshot-v7"
+                  }
+                }
+              ]
+            }
+            """
+        );
+
+        DeferredSettlementStore store = new DeferredSettlementStore(
+            path,
+            Logger.getAnonymousLogger()
+        );
+
+        assertEquals(
+            "16.4000",
+            store
+                .load()
+                .values()
+                .stream()
+                .flatMap(List::stream)
+                .findFirst()
+                .orElseThrow()
+                .result()
+                .totalPrice()
+        );
+    }
 }

@@ -82,6 +82,60 @@ class HttpMarketBrowseSnapshotProviderTest {
     }
 
     @Test
+    void parsesFixedPointSnapshotMoneyValues() {
+        HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
+                new MarketApiTransport() {
+                    @Override
+                    public String get(java.net.URI uri, java.time.Duration timeout, String bearerToken) {
+                        return """
+                        {
+                          "snapshotVersion": "fixed-point",
+                          "categories": [
+                            {
+                              "categoryId": "farming",
+                              "displayName": "Farming",
+                              "items": [
+                                {
+                                  "itemId": "wheat",
+                                  "displayName": "Wheat",
+                                  "iconKey": "WHEAT",
+                                  "buyUnitEstimate": 48000,
+                                  "sellUnitEstimate": 41000,
+                                  "currentStock": 1820,
+                                  "variationPercent": 2.3,
+                                  "blocked": false,
+                                  "operating": true
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                        """;
+                    }
+
+                    @Override
+                    public String postJson(java.net.URI uri, String body, java.time.Duration timeout, String bearerToken) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public String postForm(java.net.URI uri, String body, java.time.Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
+                },
+                URI.create("http://localhost:8080/market/snapshot"),
+                Duration.ofSeconds(5),
+                new YamlConfiguration(),
+                () -> "secret-token"
+        );
+
+        MarketBrowseSnapshot snapshot = provider.loadSnapshot();
+
+        assertEquals("4.8000 coins", snapshot.categories().getFirst().items().getFirst().buyEstimate());
+        assertEquals("4.1000 coins", snapshot.categories().getFirst().items().getFirst().sellEstimate());
+    }
+
+    @Test
     void rejectsMissingCategoriesArray() {
         HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
                 new MarketApiTransport() {

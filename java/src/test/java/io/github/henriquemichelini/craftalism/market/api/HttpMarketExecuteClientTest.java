@@ -69,6 +69,52 @@ class HttpMarketExecuteClientTest {
     }
 
     @Test
+    void normalizesFixedPointExecuteValues() {
+        HttpMarketExecuteClient client = new HttpMarketExecuteClient(
+                new MarketApiTransport() {
+                    @Override
+                    public String get(URI uri, Duration timeout, String bearerToken) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public String postJson(URI uri, String body, Duration timeout, String bearerToken) {
+                        return """
+                                {
+                                  "status": "SUCCESS",
+                                  "executedQuantity": 4,
+                                  "unitPrice": 49500,
+                                  "totalPrice": 198000,
+                                  "currency": "coins",
+                                  "snapshotVersion": "snapshot-v3"
+                                }
+                                """;
+                    }
+
+                    @Override
+                    public String postForm(URI uri, String body, Duration timeout, String authorizationHeader) {
+                        throw new UnsupportedOperationException();
+                    }
+                },
+                URI.create("http://localhost:8080/market/execute"),
+                Duration.ofSeconds(5),
+                () -> "secret-token"
+        );
+
+        MarketExecuteResult result = client.executeTrade(
+                UUID.fromString("c5eb4cd5-183e-4148-b936-4a805b155a57"),
+                "wheat",
+                MarketQuoteSide.BUY,
+                4,
+                "quote-123",
+                "snapshot-v2"
+        );
+
+        assertEquals("19.8000", result.totalPrice());
+        assertEquals("4.9500", result.unitPrice());
+    }
+
+    @Test
     void parsesStructuredRejectionCodes() {
         HttpMarketExecuteClient client = new HttpMarketExecuteClient(
                 new MarketApiTransport() {

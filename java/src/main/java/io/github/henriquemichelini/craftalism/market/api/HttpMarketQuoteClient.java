@@ -58,8 +58,8 @@ public final class HttpMarketQuoteClient implements MarketQuoteClient {
         return new MarketQuoteResult(
                 side,
                 requiredInt(root, "quantity"),
-                requiredString(root, "totalPrice"),
-                requiredString(root, "unitPrice"),
+                normalizeMoney(requiredString(root, "totalPrice")),
+                normalizeMoney(requiredString(root, "unitPrice")),
                 optionalString(root, "currency", "coins"),
                 requiredString(root, "quoteToken"),
                 requiredString(root, "snapshotVersion")
@@ -88,5 +88,9 @@ public final class HttpMarketQuoteClient implements MarketQuoteClient {
         }
 
         return source.get(field).getAsString();
+    }
+
+    private String normalizeMoney(String value) {
+        return MoneyValueFormatter.normalize(value);
     }
 }

@@ -65,8 +65,8 @@ public final class HttpMarketExecuteClient implements MarketExecuteClient {
         JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
         return new MarketExecuteResult(
                 requiredInt(root, "executedQuantity"),
-                requiredString(root, "totalPrice"),
-                requiredString(root, "unitPrice"),
+                normalizeMoney(requiredString(root, "totalPrice")),
+                normalizeMoney(requiredString(root, "unitPrice")),
                 optionalString(root, "currency", "coins"),
                 optionalString(root, "snapshotVersion", "")
         );
@@ -103,5 +103,9 @@ public final class HttpMarketExecuteClient implements MarketExecuteClient {
         }
 
         return source.get(field).getAsString();
+    }
+
+    private String normalizeMoney(String value) {
+        return MoneyValueFormatter.normalize(value);
     }
 }

@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -44,12 +45,11 @@ public final class MarketGuiService {
         LegacyComponentSerializer.legacyAmpersand();
     private static final LegacyComponentSerializer SECTION_SERIALIZER =
         LegacyComponentSerializer.legacySection();
-    private static final int QUANTITY_DECREMENT_SLOT = 10;
     private static final int QUANTITY_DISPLAY_SLOT = 12;
     private static final int TRADE_BUY_SLOT = 11;
     private static final int TRADE_ITEM_SLOT = 13;
     private static final int TRADE_SELL_SLOT = 15;
-    private static final int QUANTITY_INCREMENT_SLOT = 16;
+    private static final int TRADE_ROWS = 4;
 
     private final Plugin plugin;
     private final MarketBrowseSnapshotService snapshotService;
@@ -217,18 +217,14 @@ public final class MarketGuiService {
         String itemId,
         int rawSlot
     ) {
-        if (rawSlot == backSlot(3)) {
+        if (rawSlot == backSlot(TRADE_ROWS)) {
             openCategory(player, categoryId);
             return;
         }
 
-        if (rawSlot == QUANTITY_DECREMENT_SLOT) {
-            adjustTradeQuantity(player, categoryId, itemId, -1);
-            return;
-        }
-
-        if (rawSlot == QUANTITY_INCREMENT_SLOT) {
-            adjustTradeQuantity(player, categoryId, itemId, 1);
+        Integer quantityDelta = tradeQuantityDeltaForSlot(rawSlot);
+        if (quantityDelta != null) {
+            adjustTradeQuantity(player, categoryId, itemId, quantityDelta);
             return;
         }
 
@@ -335,18 +331,26 @@ public final class MarketGuiService {
         TradeViewHolder holder = new TradeViewHolder(category.id(), item.id());
         Inventory inventory = createInventory(
             holder,
-            3,
+            TRADE_ROWS,
             colorize(item.displayName())
         );
 
-        inventory.setItem(
-            QUANTITY_DECREMENT_SLOT,
-            quantityButton(Material.RED_STAINED_GLASS_PANE, "&c-1")
-        );
+        inventory.setItem(0, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-1", 1));
+        inventory.setItem(1, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-8", 8));
+        inventory.setItem(7, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+1", 1));
+        inventory.setItem(8, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+8", 8));
+        inventory.setItem(10, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-32", 32));
+        inventory.setItem(11, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-64", 64));
         inventory.setItem(
             QUANTITY_DISPLAY_SLOT,
             quantityDisplay(session.quantity(), session.quoteStatusMessage())
         );
+        inventory.setItem(17, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+32", 32));
+        inventory.setItem(18, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+64", 64));
+        inventory.setItem(20, quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-576", 1));
+        inventory.setItem(21, quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-2304", 1, true));
+        inventory.setItem(27, quantityButton(Material.GREEN_STAINED_GLASS_PANE, "&2+576", 1));
+        inventory.setItem(28, quantityButton(Material.GREEN_STAINED_GLASS_PANE, "&2+2304", 1, true));
         inventory.setItem(
             TRADE_BUY_SLOT,
             quoteActionButton(
@@ -370,11 +374,7 @@ public final class MarketGuiService {
             )
         );
         inventory.setItem(
-            QUANTITY_INCREMENT_SLOT,
-            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+1")
-        );
-        inventory.setItem(
-            backSlot(3),
+            backSlot(TRADE_ROWS),
             simpleItem(
                 Material.ARROW,
                 "&eBack",
@@ -514,6 +514,10 @@ public final class MarketGuiService {
             return;
         }
 
+        sendMessage(
+            player,
+            (delta > 0 ? "&a" : "&6") + "Quantity: &f" + updatedSession.quantity()
+        );
         refreshTrade(player, categoryId, itemId);
     }
 
@@ -1525,8 +1529,6 @@ public final class MarketGuiService {
         lore.add(colorize("&7Variation: &f" + item.variationPercent()));
         lore.add(colorize("&7Stock: &f" + item.stockDisplay()));
         lore.add(colorize("&7Updated: &f" + item.lastUpdated()));
-        lore.add("");
-        lore.add(colorize("&7Quantity: &f" + session.quantity()));
         lore.add(
             colorize(
                 "&7Quote status: &f" +
@@ -1591,7 +1593,21 @@ public final class MarketGuiService {
     }
 
     private ItemStack quantityButton(Material material, String name) {
-        return simpleItem(material, name, List.of("&7Adjust trade quantity."));
+        return quantityButton(material, name, 1);
+    }
+
+    private ItemStack quantityButton(Material material, String name, int amount) {
+        return quantityButton(material, name, amount, false);
+    }
+
+    private ItemStack quantityButton(
+        Material material,
+        String name,
+        int amount,
+        boolean enchanted
+    ) {
+        List<String> lore = List.of("&7Adjust trade quantity.");
+        return simpleItem(material, name, lore, amount, enchanted);
     }
 
     private ItemStack quantityDisplay(int quantity, String statusMessage) {
@@ -1635,7 +1651,18 @@ public final class MarketGuiService {
         String name,
         List<String> lore
     ) {
+        return simpleItem(material, name, lore, 1, false);
+    }
+
+    private ItemStack simpleItem(
+        Material material,
+        String name,
+        List<String> lore,
+        int amount,
+        boolean enchanted
+    ) {
         ItemStack itemStack = new ItemStack(material);
+        itemStack.setAmount(amount);
         ItemMeta itemMeta = itemStack.getItemMeta();
         if (itemMeta == null) {
             return itemStack;
@@ -1644,8 +1671,30 @@ public final class MarketGuiService {
         itemMeta.displayName(render(name));
         itemMeta.lore(render(lore));
         itemMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+        if (enchanted) {
+            itemMeta.addEnchant(Enchantment.UNBREAKING, 1, true);
+            itemMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
         itemStack.setItemMeta(itemMeta);
         return itemStack;
+    }
+
+    private Integer tradeQuantityDeltaForSlot(int rawSlot) {
+        return switch (rawSlot) {
+            case 0 -> -1;
+            case 1 -> -8;
+            case 10 -> -32;
+            case 11 -> -64;
+            case 20 -> -576;
+            case 21 -> -2304;
+            case 7 -> 1;
+            case 8 -> 8;
+            case 17 -> 32;
+            case 18 -> 64;
+            case 27 -> 576;
+            case 28 -> 2304;
+            default -> null;
+        };
     }
 
     private String title(String path) {
