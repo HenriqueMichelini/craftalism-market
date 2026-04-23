@@ -664,61 +664,13 @@ public final class MarketGuiService {
         }
 
         refreshTrade(player, categoryId, itemId);
-        plugin
-            .getServer()
-            .getScheduler()
-            .runTaskAsynchronously(plugin, () -> {
-                try {
-                    MarketQuoteResult quote = quoteClient.requestQuote(
-                        player.getUniqueId(),
-                        executingSession.selectedItemId(),
-                        MarketQuoteSide.BUY,
-                        executingSession.quantity(),
-                        snapshot.snapshotVersion()
-                    );
-                    MarketExecuteResult result = executeClient.executeTrade(
-                        player.getUniqueId(),
-                        executingSession.selectedItemId(),
-                        MarketQuoteSide.BUY,
-                        executingSession.quantity(),
-                        quote.quoteToken(),
-                        quote.snapshotVersion()
-                    );
-                    plugin
-                        .getServer()
-                        .getScheduler()
-                        .runTask(plugin, () ->
-                            applyBuySuccess(
-                                player.getUniqueId(),
-                                item.icon(),
-                                executingSession,
-                                result
-                            )
-                        );
-                } catch (MarketExecuteRejectedException rejection) {
-                    plugin
-                        .getServer()
-                        .getScheduler()
-                        .runTask(plugin, () ->
-                            applyBuyRejection(
-                                player.getUniqueId(),
-                                executingSession,
-                                rejection
-                            )
-                        );
-                } catch (RuntimeException error) {
-                    plugin
-                        .getServer()
-                        .getScheduler()
-                        .runTask(plugin, () ->
-                            applyBuyFailure(
-                                player.getUniqueId(),
-                                executingSession,
-                                error
-                            )
-                        );
-                }
-            });
+        executeTradeAsync(
+            player.getUniqueId(),
+            item.icon(),
+            snapshot.snapshotVersion(),
+            executingSession,
+            MarketQuoteSide.BUY
+        );
     }
 
     private void handleSellClick(
@@ -809,22 +761,38 @@ public final class MarketGuiService {
         }
 
         refreshTrade(player, categoryId, itemId);
+        executeTradeAsync(
+            player.getUniqueId(),
+            item.icon(),
+            snapshot.snapshotVersion(),
+            executingSession,
+            MarketQuoteSide.SELL
+        );
+    }
+
+    private void executeTradeAsync(
+        UUID playerId,
+        Material material,
+        String snapshotVersion,
+        MarketSession executingSession,
+        MarketQuoteSide side
+    ) {
         plugin
             .getServer()
             .getScheduler()
             .runTaskAsynchronously(plugin, () -> {
                 try {
                     MarketQuoteResult quote = quoteClient.requestQuote(
-                        player.getUniqueId(),
+                        playerId,
                         executingSession.selectedItemId(),
-                        MarketQuoteSide.SELL,
+                        side,
                         executingSession.quantity(),
-                        snapshot.snapshotVersion()
+                        snapshotVersion
                     );
                     MarketExecuteResult result = executeClient.executeTrade(
-                        player.getUniqueId(),
+                        playerId,
                         executingSession.selectedItemId(),
-                        MarketQuoteSide.SELL,
+                        side,
                         executingSession.quantity(),
                         quote.quoteToken(),
                         quote.snapshotVersion()
@@ -833,9 +801,10 @@ public final class MarketGuiService {
                         .getServer()
                         .getScheduler()
                         .runTask(plugin, () ->
-                            applySellSuccess(
-                                player.getUniqueId(),
-                                item.icon(),
+                            applyTradeSuccess(
+                                side,
+                                playerId,
+                                material,
                                 executingSession,
                                 result
                             )
@@ -845,8 +814,8 @@ public final class MarketGuiService {
                         .getServer()
                         .getScheduler()
                         .runTask(plugin, () ->
-                            applySellRejection(
-                                player.getUniqueId(),
+                            applyTradeRejection(
+                                playerId,
                                 executingSession,
                                 rejection
                             )
@@ -856,11 +825,7 @@ public final class MarketGuiService {
                         .getServer()
                         .getScheduler()
                         .runTask(plugin, () ->
-                            applySellFailure(
-                                player.getUniqueId(),
-                                executingSession,
-                                error
-                            )
+                            applyTradeFailure(playerId, executingSession)
                         );
                 }
             });
@@ -922,30 +887,13 @@ public final class MarketGuiService {
         MarketSession expectedSession,
         MarketExecuteResult result
     ) {
-        Player player = plugin.getServer().getPlayer(playerId);
-        if (player != null && player.isOnline()) {
-            settlementService.applyBuySettlement(player, material, result);
-        } else {
-            settlementService.queueDeferredSettlement(
-                playerId,
-                new DeferredSettlement(MarketQuoteSide.BUY, material, result)
-            );
-        }
-
-        MarketSession updated = sessionRegistry
-            .update(playerId, current -> {
-                if (!sameTradeSession(current, expectedSession)) {
-                    return current;
-                }
-
-                return current.withQuantity(current.quantity());
-            })
-            .orElse(null);
-
-        if (updated != null) {
-            rerenderTradeIfVisible(playerId, updated);
-            refreshTradeSnapshot(playerId, updated);
-        }
+        applyTradeSuccess(
+            MarketQuoteSide.BUY,
+            playerId,
+            material,
+            expectedSession,
+            result
+        );
     }
 
     private void applySellSuccess(
@@ -954,14 +902,30 @@ public final class MarketGuiService {
         MarketSession expectedSession,
         MarketExecuteResult result
     ) {
+        applyTradeSuccess(
+            MarketQuoteSide.SELL,
+            playerId,
+            material,
+            expectedSession,
+            result
+        );
+    }
+
+    private void applyTradeSuccess(
+        MarketQuoteSide side,
+        UUID playerId,
+        Material material,
+        MarketSession expectedSession,
+        MarketExecuteResult result
+    ) {
         Player player = plugin.getServer().getPlayer(playerId);
-        if (player == null || !player.isOnline()) {
+        if (player != null && player.isOnline()) {
+            applySettlement(player, material, result, side);
+        } else {
             settlementService.queueDeferredSettlement(
                 playerId,
-                new DeferredSettlement(MarketQuoteSide.SELL, material, result)
+                new DeferredSettlement(side, material, result)
             );
-        } else {
-            settlementService.applySellSettlement(player, material, result);
         }
 
         MarketSession updated = sessionRegistry
@@ -980,7 +944,29 @@ public final class MarketGuiService {
         }
     }
 
+    private void applySettlement(
+        Player player,
+        Material material,
+        MarketExecuteResult result,
+        MarketQuoteSide side
+    ) {
+        if (side == MarketQuoteSide.BUY) {
+            settlementService.applyBuySettlement(player, material, result);
+            return;
+        }
+
+        settlementService.applySellSettlement(player, material, result);
+    }
+
     private void applyBuyRejection(
+        UUID playerId,
+        MarketSession expectedSession,
+        MarketExecuteRejectedException rejection
+    ) {
+        applyTradeRejection(playerId, expectedSession, rejection);
+    }
+
+    private void applyTradeRejection(
         UUID playerId,
         MarketSession expectedSession,
         MarketExecuteRejectedException rejection
@@ -1037,27 +1023,7 @@ public final class MarketGuiService {
         MarketSession expectedSession,
         RuntimeException error
     ) {
-        MarketSession updated = sessionRegistry
-            .update(playerId, current -> {
-                if (!sameTradeSession(current, expectedSession)) {
-                    return current;
-                }
-
-                return current.withQuoteMessage(
-                    MarketQuoteStatus.AVAILABLE,
-                    renderer.message("messages.execute-unavailable")
-                );
-            })
-            .orElse(null);
-
-        Player player = plugin.getServer().getPlayer(playerId);
-        if (player != null && player.isOnline()) {
-            renderer.sendMessage(player, renderer.message("messages.execute-unavailable"));
-        }
-
-        if (updated != null) {
-            rerenderTradeIfVisible(playerId, updated);
-        }
+        applyTradeFailure(playerId, expectedSession);
     }
 
     private void applySellRejection(
@@ -1065,57 +1031,20 @@ public final class MarketGuiService {
         MarketSession expectedSession,
         MarketExecuteRejectedException rejection
     ) {
-        String code = rejection.rejectionCode();
-        if ("STALE_QUOTE".equals(code) || "QUOTE_EXPIRED".equals(code)) {
-            MarketSession updated = sessionRegistry
-                .update(playerId, current -> {
-                    if (!sameTradeSession(current, expectedSession)) {
-                        return current;
-                    }
-
-                    return current.withQuantity(current.quantity());
-                })
-                .orElse(null);
-
-            Player player = plugin.getServer().getPlayer(playerId);
-            if (player != null && player.isOnline()) {
-                renderer.sendMessage(player, rejectionMessage(code));
-            }
-
-            if (updated != null) {
-                rerenderTradeIfVisible(playerId, updated);
-                refreshTradeSnapshot(playerId, updated);
-            }
-            return;
-        }
-
-        MarketSession updated = sessionRegistry
-            .update(playerId, current -> {
-                if (!sameTradeSession(current, expectedSession)) {
-                    return current;
-                }
-
-                return current.withQuoteMessage(
-                    MarketQuoteStatus.AVAILABLE,
-                    rejectionMessage(code)
-                );
-            })
-            .orElse(null);
-
-        Player player = plugin.getServer().getPlayer(playerId);
-        if (player != null && player.isOnline()) {
-            renderer.sendMessage(player, rejectionMessage(code));
-        }
-
-        if (updated != null) {
-            rerenderTradeIfVisible(playerId, updated);
-        }
+        applyTradeRejection(playerId, expectedSession, rejection);
     }
 
     private void applySellFailure(
         UUID playerId,
         MarketSession expectedSession,
         RuntimeException error
+    ) {
+        applyTradeFailure(playerId, expectedSession);
+    }
+
+    private void applyTradeFailure(
+        UUID playerId,
+        MarketSession expectedSession
     ) {
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {

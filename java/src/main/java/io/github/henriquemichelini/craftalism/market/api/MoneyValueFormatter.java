@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 public final class MoneyValueFormatter {
-    private static final int SCALE = 4;
+    private static final int MAX_DISPLAY_SCALE = 4;
 
     private MoneyValueFormatter() {}
 
@@ -14,11 +14,12 @@ public final class MoneyValueFormatter {
             return value;
         }
 
-        if (value.matches("-?\\d+")) {
-            return fixedPoint(new BigDecimal(value));
+        try {
+            BigDecimal parsed = new BigDecimal(value);
+            return formatDisplayValue(parsed);
+        } catch (NumberFormatException exception) {
+            return value;
         }
-
-        return value;
     }
 
     public static String normalize(JsonElement element) {
@@ -27,21 +28,16 @@ public final class MoneyValueFormatter {
         }
 
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
-            BigDecimal value = element.getAsBigDecimal();
-            if (value.scale() <= 0) {
-                return fixedPoint(value);
-            }
-
-            return value.stripTrailingZeros().toPlainString();
+            return formatDisplayValue(element.getAsBigDecimal());
         }
 
         return normalize(element.getAsString());
     }
 
-    private static String fixedPoint(BigDecimal value) {
+    private static String formatDisplayValue(BigDecimal value) {
         return value
-            .movePointLeft(SCALE)
-            .setScale(SCALE, RoundingMode.UNNECESSARY)
+            .setScale(MAX_DISPLAY_SCALE, RoundingMode.HALF_UP)
+            .stripTrailingZeros()
             .toPlainString();
     }
 }

@@ -39,15 +39,27 @@ class DeferredSettlementStoreTest {
                     "snapshot-v7"
                 )
             );
+        MarketGuiService.DeferredSettlement normalizedSettlement =
+            new MarketGuiService.DeferredSettlement(
+                MarketQuoteSide.SELL,
+                Material.WHEAT,
+                new MarketExecuteResult(
+                    4,
+                    "16.4",
+                    "4.1",
+                    "coins",
+                    "snapshot-v7"
+                )
+            );
 
         store.save(Map.of(playerId, List.of(settlement)));
 
-        assertEquals(Map.of(playerId, List.of(settlement)), store.load());
+        assertEquals(Map.of(playerId, List.of(normalizedSettlement)), store.load());
         assertFalse(Files.exists(tempDir.resolve("deferred-settlements.json.tmp")));
     }
 
     @Test
-    void loadNormalizesFixedPointSettlementAmounts() throws Exception {
+    void loadPreservesIntegerSettlementAmountDisplayUnits() throws Exception {
         Path path = tempDir.resolve("deferred-settlements.json");
         Files.writeString(
             path,
@@ -77,7 +89,7 @@ class DeferredSettlementStoreTest {
         );
 
         assertEquals(
-            "16.4000",
+            "164000",
             store
                 .load()
                 .values()

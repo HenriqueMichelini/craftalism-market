@@ -6,9 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
+import io.github.henriquemichelini.craftalism.market.api.MoneyValueFormatter;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -23,8 +22,6 @@ import java.util.logging.Logger;
 import org.bukkit.Material;
 
 final class DeferredSettlementStore {
-    private static final int MONEY_SCALE = 4;
-
     private final Path path;
     private final Logger logger;
 
@@ -185,13 +182,6 @@ final class DeferredSettlementStore {
     }
 
     private String normalizeMoney(String value) {
-        if (value == null || value.isBlank() || !value.matches("-?\\d+")) {
-            return value;
-        }
-
-        return new BigDecimal(value)
-            .movePointLeft(MONEY_SCALE)
-            .setScale(MONEY_SCALE, RoundingMode.UNNECESSARY)
-            .toPlainString();
+        return MoneyValueFormatter.normalize(value);
     }
 }

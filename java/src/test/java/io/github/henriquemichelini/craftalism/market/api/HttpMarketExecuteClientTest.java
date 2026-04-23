@@ -60,7 +60,7 @@ class HttpMarketExecuteClientTest {
         );
 
         assertEquals(4, result.executedQuantity());
-        assertEquals("19.80", result.totalPrice());
+        assertEquals("19.8", result.totalPrice());
         assertEquals("snapshot-v3", result.snapshotVersion());
         assertEquals("secret-token", authHeader.get());
         assertTrue(requestBody.get().contains("\"playerUuid\":\"" + playerId + "\""));
@@ -69,7 +69,7 @@ class HttpMarketExecuteClientTest {
     }
 
     @Test
-    void normalizesFixedPointExecuteValues() {
+    void preservesIntegerExecutePriceDisplayUnits() {
         HttpMarketExecuteClient client = new HttpMarketExecuteClient(
                 new MarketApiTransport() {
                     @Override
@@ -110,8 +110,8 @@ class HttpMarketExecuteClientTest {
                 "snapshot-v2"
         );
 
-        assertEquals("19.8000", result.totalPrice());
-        assertEquals("4.9500", result.unitPrice());
+        assertEquals("198000", result.totalPrice());
+        assertEquals("49500", result.unitPrice());
     }
 
     @Test

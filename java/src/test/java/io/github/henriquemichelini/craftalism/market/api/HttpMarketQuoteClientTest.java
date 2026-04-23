@@ -52,7 +52,7 @@ class HttpMarketQuoteClientTest {
         MarketQuoteResult result = client.requestQuote(playerId, "wheat", MarketQuoteSide.BUY, 4, "snapshot-v1");
 
         assertEquals(MarketQuoteSide.BUY, result.side());
-        assertEquals("19.80", result.totalPrice());
+        assertEquals("19.8", result.totalPrice());
         assertEquals("quote_123", result.quoteToken());
         assertEquals("snapshot-v2", result.snapshotVersion());
         assertEquals("secret-token", authHeader.get());
@@ -63,7 +63,7 @@ class HttpMarketQuoteClientTest {
     }
 
     @Test
-    void normalizesFixedPointQuoteValues() {
+    void preservesIntegerQuotePriceDisplayUnits() {
         HttpMarketQuoteClient client = new HttpMarketQuoteClient(
                 new MarketApiTransport() {
                     @Override
@@ -103,6 +103,6 @@ class HttpMarketQuoteClientTest {
                 "snapshot-v1"
         );
 
-        assertEquals("19.8000", result.totalPrice());
+        assertEquals("198000", result.totalPrice());
     }
 }

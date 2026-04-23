@@ -82,7 +82,7 @@ class HttpMarketBrowseSnapshotProviderTest {
     }
 
     @Test
-    void parsesFixedPointSnapshotMoneyValues() {
+    void preservesIntegerSnapshotMoneyDisplayUnits() {
         HttpMarketBrowseSnapshotProvider provider = new HttpMarketBrowseSnapshotProvider(
                 new MarketApiTransport() {
                     @Override
@@ -131,8 +131,8 @@ class HttpMarketBrowseSnapshotProviderTest {
 
         MarketBrowseSnapshot snapshot = provider.loadSnapshot();
 
-        assertEquals("4.8000 coins", snapshot.categories().getFirst().items().getFirst().buyEstimate());
-        assertEquals("4.1000 coins", snapshot.categories().getFirst().items().getFirst().sellEstimate());
+        assertEquals("48000 coins", snapshot.categories().getFirst().items().getFirst().buyEstimate());
+        assertEquals("41000 coins", snapshot.categories().getFirst().items().getFirst().sellEstimate());
     }
 
     @Test
