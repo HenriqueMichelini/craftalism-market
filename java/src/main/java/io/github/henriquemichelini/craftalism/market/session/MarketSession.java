@@ -15,6 +15,8 @@ public record MarketSession(
         String quoteStatusMessage,
         String buyQuotedTotal,
         String sellQuotedTotal,
+        String buyQuoteMessage,
+        String sellQuoteMessage,
         String buyQuoteToken,
         String sellQuoteToken,
         String buyQuoteSnapshotVersion,
@@ -23,11 +25,11 @@ public record MarketSession(
         boolean executingSell
 ) {
     public static MarketSession categoryList(boolean readOnly) {
-        return new MarketSession(MarketScreen.CATEGORY_LIST, null, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null, false, false);
+        return new MarketSession(MarketScreen.CATEGORY_LIST, null, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null, null, null, false, false);
     }
 
     public static MarketSession itemList(String categoryId, boolean readOnly) {
-        return new MarketSession(MarketScreen.ITEM_LIST, categoryId, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null, false, false);
+        return new MarketSession(MarketScreen.ITEM_LIST, categoryId, null, readOnly, 1, 0, MarketQuoteStatus.DISABLED, null, null, null, null, null, null, null, null, null, false, false);
     }
 
     public static MarketSession tradeView(String categoryId, String itemId, boolean readOnly) {
@@ -40,6 +42,8 @@ public record MarketSession(
                 0,
                 readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.AVAILABLE,
                 readOnly ? "Cached preview only" : "Ready to trade",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -63,6 +67,8 @@ public record MarketSession(
                 quoteStatusMessage,
                 buyQuotedTotal,
                 sellQuotedTotal,
+                buyQuoteMessage,
+                sellQuoteMessage,
                 buyQuoteToken,
                 sellQuoteToken,
                 buyQuoteSnapshotVersion,
@@ -84,6 +90,8 @@ public record MarketSession(
                 readOnly ? "Cached preview only" : "Refreshing quote...",
                 buyQuotedTotal,
                 sellQuotedTotal,
+                buyQuoteMessage,
+                sellQuoteMessage,
                 buyQuoteToken,
                 sellQuoteToken,
                 buyQuoteSnapshotVersion,
@@ -103,6 +111,8 @@ public record MarketSession(
                 quoteRequestVersion,
                 readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.AVAILABLE,
                 readOnly ? "Cached preview only" : "Ready to trade",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -130,6 +140,8 @@ public record MarketSession(
                 null,
                 null,
                 null,
+                null,
+                null,
                 false,
                 false
         );
@@ -145,6 +157,8 @@ public record MarketSession(
                 quoteRequestVersion,
                 MarketQuoteStatus.DISABLED,
                 "Cached preview only",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -172,18 +186,22 @@ public record MarketSession(
                 null,
                 null,
                 null,
+                null,
+                null,
                 false,
                 false
         );
     }
 
     public MarketSession withQuotePair(MarketQuotePair pair) {
-        return withQuoteResults(pair.buy(), pair.sell(), "Quotes ready");
+        return withQuoteResults(pair.buy(), "Quote ready", pair.sell(), "Quote ready", "Quotes ready");
     }
 
     public MarketSession withQuoteResults(
             MarketQuoteResult buyQuote,
+            String buyMessage,
             MarketQuoteResult sellQuote,
+            String sellMessage,
             String message
     ) {
         boolean hasAnyQuote = buyQuote != null || sellQuote != null;
@@ -198,6 +216,8 @@ public record MarketSession(
                 message,
                 buyQuote == null ? null : buyQuote.totalPrice() + " " + buyQuote.currency(),
                 sellQuote == null ? null : sellQuote.totalPrice() + " " + sellQuote.currency(),
+                buyMessage,
+                sellMessage,
                 buyQuote == null ? null : buyQuote.quoteToken(),
                 sellQuote == null ? null : sellQuote.quoteToken(),
                 buyQuote == null ? null : buyQuote.snapshotVersion(),
@@ -219,6 +239,8 @@ public record MarketSession(
                 side == MarketQuoteSide.BUY ? "Executing buy..." : "Executing sell...",
                 buyQuotedTotal,
                 sellQuotedTotal,
+                buyQuoteMessage,
+                sellQuoteMessage,
                 buyQuoteToken,
                 sellQuoteToken,
                 buyQuoteSnapshotVersion,
@@ -240,6 +262,8 @@ public record MarketSession(
                 message,
                 buyQuotedTotal,
                 sellQuotedTotal,
+                buyQuoteMessage,
+                sellQuoteMessage,
                 buyQuoteToken,
                 sellQuoteToken,
                 buyQuoteSnapshotVersion,

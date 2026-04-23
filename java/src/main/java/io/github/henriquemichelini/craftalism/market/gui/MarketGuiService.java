@@ -449,6 +449,7 @@ public final class MarketGuiService {
             renderer.quoteActionButton(
                 "Buy",
                 session.buyQuotedTotal(),
+                session.buyQuoteMessage(),
                 session.quoteStatus(),
                 snapshot.readOnly(),
                 hasExecutableQuote(session, MarketQuoteSide.BUY)
@@ -463,6 +464,7 @@ public final class MarketGuiService {
             renderer.quoteActionButton(
                 "Sell",
                 session.sellQuotedTotal(),
+                session.sellQuoteMessage(),
                 session.quoteStatus(),
                 snapshot.readOnly(),
                 hasExecutableQuote(session, MarketQuoteSide.SELL)
@@ -680,6 +682,9 @@ public final class MarketGuiService {
             executingSession.screen() != MarketScreen.TRADE_VIEW ||
             !executingSession.executingBuy()
         ) {
+            MarketSession currentSession = sessionRegistry
+                .get(player.getUniqueId())
+                .orElse(null);
             logInfo(
                 "market.buy.click rejected: player=" +
                     player.getUniqueId() +
@@ -689,11 +694,13 @@ public final class MarketGuiService {
                     itemId +
                     ", session=" +
                     sessionSummary(
-                        sessionRegistry.get(player.getUniqueId()).orElse(null)
+                        currentSession
                     )
             );
-            renderer.sendMessage(player, renderer.message("messages.trade-disabled"));
-            refreshTrade(player, categoryId, itemId);
+            renderer.sendMessage(
+                player,
+                sideUnavailableMessage(currentSession, MarketQuoteSide.BUY)
+            );
             return;
         }
 
@@ -749,8 +756,10 @@ public final class MarketGuiService {
                     ", session=" +
                     sessionSummary(currentSession)
             );
-            renderer.sendMessage(player, renderer.message("messages.trade-disabled"));
-            refreshTrade(player, categoryId, itemId);
+            renderer.sendMessage(
+                player,
+                sideUnavailableMessage(currentSession, MarketQuoteSide.SELL)
+            );
             return;
         }
 
@@ -800,6 +809,9 @@ public final class MarketGuiService {
             .orElse(null);
 
         if (executingSession == null || !executingSession.executingSell()) {
+            MarketSession current = sessionRegistry
+                .get(player.getUniqueId())
+                .orElse(null);
             logInfo(
                 "market.sell.execute rejected: player=" +
                     player.getUniqueId() +
@@ -809,11 +821,13 @@ public final class MarketGuiService {
                     itemId +
                     ", session=" +
                     sessionSummary(
-                        sessionRegistry.get(player.getUniqueId()).orElse(null)
+                        current
                     )
             );
-            renderer.sendMessage(player, renderer.message("messages.trade-disabled"));
-            refreshTrade(player, categoryId, itemId);
+            renderer.sendMessage(
+                player,
+                sideUnavailableMessage(current, MarketQuoteSide.SELL)
+            );
             return;
         }
 
@@ -1463,7 +1477,9 @@ public final class MarketGuiService {
 
                 return current.withQuoteResults(
                     buyQuote,
+                    quoteSideMessage(buyQuote, buyRejectionCode),
                     sellQuote,
+                    quoteSideMessage(sellQuote, sellRejectionCode),
                     quoteStatusMessage(
                         buyQuote,
                         sellQuote,
@@ -1518,16 +1534,29 @@ public final class MarketGuiService {
             return "Quotes ready";
         }
         if (buyQuote != null && sellRejectionCode != null) {
-            return "Buy quote ready. " + rejectionMessage(sellRejectionCode);
+            return "Partial quotes ready";
         }
         if (sellQuote != null && buyRejectionCode != null) {
-            return "Sell quote ready. " + rejectionMessage(buyRejectionCode);
+            return "Partial quotes ready";
         }
         if (buyRejectionCode != null) {
             return rejectionMessage(buyRejectionCode);
         }
         if (sellRejectionCode != null) {
             return rejectionMessage(sellRejectionCode);
+        }
+        return renderer.message("messages.quote-unavailable");
+    }
+
+    private String quoteSideMessage(
+        MarketQuoteResult quote,
+        String rejectionCode
+    ) {
+        if (quote != null) {
+            return "Quote ready";
+        }
+        if (rejectionCode != null) {
+            return rejectionMessage(rejectionCode);
         }
         return renderer.message("messages.quote-unavailable");
     }
@@ -1794,6 +1823,26 @@ public final class MarketGuiService {
 
     private String rejectionMessage(String code) {
         return renderer.rejectionMessage(code);
+    }
+
+    private String sideUnavailableMessage(
+        MarketSession session,
+        MarketQuoteSide side
+    ) {
+        if (session == null) {
+            return renderer.message("messages.trade-disabled");
+        }
+        if (session.quoteStatus() == MarketQuoteStatus.PENDING) {
+            return renderer.message("messages.rejections.STALE_QUOTE");
+        }
+
+        String message = side == MarketQuoteSide.BUY
+            ? session.buyQuoteMessage()
+            : session.sellQuoteMessage();
+        if (message == null || message.isBlank() || "Quote ready".equals(message)) {
+            return renderer.message("messages.trade-disabled");
+        }
+        return message;
     }
 
     private String quoteRejectionCode(RuntimeException error) {

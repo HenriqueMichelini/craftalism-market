@@ -107,6 +107,7 @@ final class MarketGuiRenderer {
     ItemStack quoteActionButton(
         String action,
         String quotedTotal,
+        String quoteMessage,
         MarketQuoteStatus quoteStatus,
         boolean readOnly,
         boolean executable
@@ -115,6 +116,9 @@ final class MarketGuiRenderer {
         lore.add(colorize("&7Click to execute the latest quote."));
         if (quotedTotal != null) {
             lore.add(colorize("&7Latest quoted total: &f" + quotedTotal));
+        }
+        if (quoteMessage != null && !quoteMessage.isBlank()) {
+            lore.add(colorize("&7Info: &f" + quoteMessage));
         }
         String stateLabel = readOnly
             ? quoteStatusLabel(MarketQuoteStatus.DISABLED, null)

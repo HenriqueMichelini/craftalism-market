@@ -1430,13 +1430,44 @@ class MarketGuiServiceTest {
 
         MarketSession quotedSession = registry.get(playerId).orElseThrow();
         assertEquals(MarketQuoteStatus.AVAILABLE, quotedSession.quoteStatus());
-        assertTrue(quotedSession.quoteStatusMessage().contains("Sell quote ready."));
+        assertEquals("Partial quotes ready", quotedSession.quoteStatusMessage());
+        assertEquals(
+            "&cThere is not enough stock for that purchase.",
+            quotedSession.buyQuoteMessage()
+        );
+        assertEquals("Quote ready", quotedSession.sellQuoteMessage());
         assertEquals(null, quotedSession.buyQuoteToken());
         assertEquals(null, quotedSession.buyQuoteSnapshotVersion());
         assertEquals("sell-token-1", quotedSession.sellQuoteToken());
         assertEquals("snapshot-v1", quotedSession.sellQuoteSnapshotVersion());
         assertEquals("4 coins", quotedSession.sellQuotedTotal());
         assertEquals(0, executeCalls.get());
+    }
+
+    @Test
+    void sideUnavailableMessageUsesBuySideQuoteMessage() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        MarketGuiService guiService = guiService(config);
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false)
+            .withQuoteResults(
+                null,
+                "&cThere is not enough stock for that purchase.",
+                quote(MarketQuoteSide.SELL, 1, "snapshot-v1"),
+                "Quote ready",
+                "Partial quotes ready"
+            );
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "sideUnavailableMessage",
+            MarketSession.class,
+            MarketQuoteSide.class
+        );
+        method.setAccessible(true);
+
+        assertEquals(
+            "&cThere is not enough stock for that purchase.",
+            method.invoke(guiService, session, MarketQuoteSide.BUY)
+        );
     }
 
     @Test

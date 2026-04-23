@@ -70,12 +70,16 @@ class MarketSessionTest {
 
         MarketSession updated = session.withQuoteResults(
                 null,
+                "&cThere is not enough stock for that purchase.",
                 new MarketQuoteResult(MarketQuoteSide.SELL, 1, "4.1", "4.1", "coins", "sell-token", "snapshot-sell"),
-                "Sell quote ready. &cThere is not enough stock for that purchase."
+                "Quote ready",
+                "Partial quotes ready"
         );
 
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Sell quote ready. &cThere is not enough stock for that purchase.", updated.quoteStatusMessage());
+        assertEquals("Partial quotes ready", updated.quoteStatusMessage());
+        assertEquals("&cThere is not enough stock for that purchase.", updated.buyQuoteMessage());
+        assertEquals("Quote ready", updated.sellQuoteMessage());
         assertEquals(null, updated.buyQuoteToken());
         assertEquals("sell-token", updated.sellQuoteToken());
         assertEquals("4.1 coins", updated.sellQuotedTotal());
