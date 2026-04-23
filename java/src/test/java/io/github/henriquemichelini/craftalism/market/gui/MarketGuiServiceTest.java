@@ -670,6 +670,7 @@ class MarketGuiServiceTest {
             UUID playerId = UUID.randomUUID();
             Player player = fakeOfflinePlayer(playerId);
             Plugin plugin = fakePlugin(player);
+            AtomicInteger quoteCalls = new AtomicInteger();
             MarketGuiService guiService = new MarketGuiService(
                 plugin,
                 new MarketBrowseSnapshotService(
@@ -677,7 +678,8 @@ class MarketGuiServiceTest {
                     directExecutor()
                 ),
                 (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                    throw new AssertionError();
+                    quoteCalls.incrementAndGet();
+                    return quote(side, quantity, snapshotVersion);
                 },
                 (
                     ignoredPlayerId,
@@ -746,11 +748,14 @@ class MarketGuiServiceTest {
             MarketSession updated = registry.get(playerId).orElseThrow();
             assertEquals(5, updated.quantity());
             assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-            assertEquals("Ready to trade", updated.quoteStatusMessage());
+            assertEquals("Quotes ready", updated.quoteStatusMessage());
             assertEquals(
-                executingSession.quoteRequestVersion(),
+                executingSession.quoteRequestVersion() + 1,
                 updated.quoteRequestVersion()
             );
+            assertEquals("buy-token-5", updated.buyQuoteToken());
+            assertEquals("sell-token-5", updated.sellQuoteToken());
+            assertEquals(2, quoteCalls.get());
             assertFalse(updated.executingBuy());
             assertFalse(updated.executingSell());
         }
@@ -773,6 +778,7 @@ class MarketGuiServiceTest {
             UUID playerId = UUID.randomUUID();
             Player player = fakeOfflinePlayer(playerId);
             Plugin plugin = fakePlugin(player);
+            AtomicInteger quoteCalls = new AtomicInteger();
             MarketGuiService guiService = new MarketGuiService(
                 plugin,
                 new MarketBrowseSnapshotService(
@@ -780,7 +786,8 @@ class MarketGuiServiceTest {
                     directExecutor()
                 ),
                 (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                    throw new AssertionError();
+                    quoteCalls.incrementAndGet();
+                    return quote(side, quantity, snapshotVersion);
                 },
                 (
                     ignoredPlayerId,
@@ -849,11 +856,14 @@ class MarketGuiServiceTest {
             MarketSession updated = registry.get(playerId).orElseThrow();
             assertEquals(5, updated.quantity());
             assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-            assertEquals("Ready to trade", updated.quoteStatusMessage());
+            assertEquals("Quotes ready", updated.quoteStatusMessage());
             assertEquals(
-                executingSession.quoteRequestVersion(),
+                executingSession.quoteRequestVersion() + 1,
                 updated.quoteRequestVersion()
             );
+            assertEquals("buy-token-5", updated.buyQuoteToken());
+            assertEquals("sell-token-5", updated.sellQuoteToken());
+            assertEquals(2, quoteCalls.get());
             assertFalse(updated.executingBuy());
             assertFalse(updated.executingSell());
         }
@@ -1347,11 +1357,13 @@ class MarketGuiServiceTest {
             new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
         snapshotService.loadForInitialOpen().get();
         Player onlinePlayer = fakeOnlinePlayer(playerId);
+        AtomicInteger quoteCalls = new AtomicInteger();
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(onlinePlayer),
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                throw new AssertionError();
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
             },
             (
                 ignoredPlayerId,
@@ -1418,7 +1430,10 @@ class MarketGuiServiceTest {
         assertEquals(3, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(3, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("buy-token-3", updated.buyQuoteToken());
+        assertEquals("sell-token-3", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -1433,11 +1448,13 @@ class MarketGuiServiceTest {
             new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
         snapshotService.loadForInitialOpen().get();
         Player offlinePlayer = fakeOfflinePlayer(playerId);
+        AtomicInteger quoteCalls = new AtomicInteger();
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(offlinePlayer),
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                throw new AssertionError();
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
             },
             (
                 ignoredPlayerId,
@@ -1505,7 +1522,10 @@ class MarketGuiServiceTest {
         assertEquals(1, guiService.deferredSettlementCount(playerId));
         assertEquals(3, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("buy-token-3", updated.buyQuoteToken());
+        assertEquals("sell-token-3", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -1699,11 +1719,13 @@ class MarketGuiServiceTest {
             new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
         snapshotService.loadForInitialOpen().get();
         Player onlinePlayer = fakeOnlinePlayer(playerId);
+        AtomicInteger quoteCalls = new AtomicInteger();
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(onlinePlayer),
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                throw new AssertionError();
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
             },
             (
                 ignoredPlayerId,
@@ -1770,7 +1792,10 @@ class MarketGuiServiceTest {
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(4, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("buy-token-4", updated.buyQuoteToken());
+        assertEquals("sell-token-4", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -1786,11 +1811,13 @@ class MarketGuiServiceTest {
             new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
         snapshotService.loadForInitialOpen().get();
         Player offlinePlayer = fakeOfflinePlayer(playerId);
+        AtomicInteger quoteCalls = new AtomicInteger();
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(offlinePlayer),
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                throw new AssertionError();
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
             },
             (
                 ignoredPlayerId,
@@ -1858,7 +1885,10 @@ class MarketGuiServiceTest {
         assertEquals(1, guiService.deferredSettlementCount(playerId));
         assertEquals(4, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("buy-token-4", updated.buyQuoteToken());
+        assertEquals("sell-token-4", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -1886,11 +1916,13 @@ class MarketGuiServiceTest {
         List<String> playerMessages = new ArrayList<>();
         Player onlinePlayer = fakeOnlinePlayer(playerId, playerMessages);
         TestLogger testLogger = new TestLogger();
+        AtomicInteger quoteCalls = new AtomicInteger();
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(onlinePlayer, testLogger.logger()),
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
-                throw new AssertionError();
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
             },
             (
                 ignoredPlayerId,
@@ -1957,7 +1989,10 @@ class MarketGuiServiceTest {
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(4, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("buy-token-4", updated.buyQuoteToken());
+        assertEquals("sell-token-4", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
         assertTrue(

@@ -1350,6 +1350,18 @@ public final class MarketGuiService {
 
         if (updated != null) {
             rerenderTradeIfVisible(playerId, updated);
+            if (
+                !updated.readOnly() &&
+                updated.screen() == MarketScreen.TRADE_VIEW &&
+                updated.quoteStatus() == MarketQuoteStatus.AVAILABLE &&
+                !hasQuotePair(updated)
+            ) {
+                requestQuoteRefresh(
+                    playerId,
+                    updated.selectedCategoryId(),
+                    updated.selectedItemId()
+                );
+            }
         }
     }
 
