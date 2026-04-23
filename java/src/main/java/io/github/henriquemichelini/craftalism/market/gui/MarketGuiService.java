@@ -1368,6 +1368,7 @@ public final class MarketGuiService {
                         );
                 } catch (RuntimeException error) {
                     Throwable rootCause = rootCause(error);
+                    String rejectionCode = quoteRejectionCode(error);
                     logWarning(
                         "market.quote.request failed: player=" +
                             playerId +
@@ -1388,14 +1389,32 @@ public final class MarketGuiService {
                     plugin
                         .getServer()
                         .getScheduler()
-                        .runTask(plugin, () ->
-                            applyQuoteRefreshFailure(
-                                playerId,
-                                categoryId,
-                                itemId,
-                                quantity,
-                                requestVersion
-                            )
+                        .runTask(
+                            plugin,
+                            () -> {
+                                if (
+                                    "STALE_QUOTE".equals(rejectionCode) ||
+                                    "QUOTE_EXPIRED".equals(rejectionCode)
+                                ) {
+                                    applyRetryableQuoteRefreshFailure(
+                                        playerId,
+                                        categoryId,
+                                        itemId,
+                                        quantity,
+                                        requestVersion,
+                                        rejectionCode
+                                    );
+                                    return;
+                                }
+
+                                applyQuoteRefreshFailure(
+                                    playerId,
+                                    categoryId,
+                                    itemId,
+                                    quantity,
+                                    requestVersion
+                                );
+                            }
                         );
                 }
             });
@@ -1437,6 +1456,9 @@ public final class MarketGuiService {
         } catch (RuntimeException error) {
             String rejectionCode = quoteRejectionCode(error);
             if (rejectionCode == null) {
+                throw error;
+            }
+            if (isRetryableQuoteRejection(error, rejectionCode)) {
                 throw error;
             }
 
@@ -1608,6 +1630,70 @@ public final class MarketGuiService {
                     quantity +
                     ", requestVersion=" +
                     requestVersion +
+                    ", session=" +
+                    sessionSummary(sessionRegistry.get(playerId).orElse(null))
+            );
+        }
+    }
+
+    private void applyRetryableQuoteRefreshFailure(
+        UUID playerId,
+        String categoryId,
+        String itemId,
+        int quantity,
+        int requestVersion,
+        String rejectionCode
+    ) {
+        MarketSession updated = sessionRegistry
+            .update(playerId, current -> {
+                if (
+                    !current.matchesTradeRequest(
+                        categoryId,
+                        itemId,
+                        quantity,
+                        requestVersion
+                    )
+                ) {
+                    return current;
+                }
+
+                return current.withClearedQuoteState();
+            })
+            .orElse(null);
+
+        if (updated != null) {
+            logInfo(
+                "market.quote.apply retryable-failure: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", code=" +
+                    rejectionCode +
+                    ", session=" +
+                    sessionSummary(updated)
+            );
+            rerenderTradeIfVisible(playerId, updated);
+            refreshTradeSnapshot(playerId, updated);
+        } else {
+            logInfo(
+                "market.quote.apply retryable-failure-skipped: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", code=" +
+                    rejectionCode +
                     ", session=" +
                     sessionSummary(sessionRegistry.get(playerId).orElse(null))
             );
@@ -1849,7 +1935,10 @@ public final class MarketGuiService {
         if (!(error instanceof MarketApiRequestException requestException)) {
             return null;
         }
-        if (requestException.statusCode() != 422) {
+        if (
+            requestException.statusCode() != 422 &&
+            requestException.statusCode() != 409
+        ) {
             return null;
         }
 
@@ -1860,6 +1949,19 @@ public final class MarketGuiService {
 
         Matcher matcher = REJECTION_CODE_PATTERN.matcher(responseBody);
         return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private boolean isRetryableQuoteRejection(
+        RuntimeException error,
+        String rejectionCode
+    ) {
+        if (!(error instanceof MarketApiRequestException requestException)) {
+            return false;
+        }
+
+        return requestException.statusCode() == 409 &&
+            ("STALE_QUOTE".equals(rejectionCode) ||
+                "QUOTE_EXPIRED".equals(rejectionCode));
     }
 
     private record QuoteAttempt(

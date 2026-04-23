@@ -871,6 +871,91 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void staleQuoteDuringQuoteRefreshRequeuesFreshQuotes() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set(
+            "messages.rejections.STALE_QUOTE",
+            "&eThat quote is stale. Refreshing now."
+        );
+
+        AtomicInteger snapshotCalls = new AtomicInteger();
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(
+                () ->
+                    snapshotCalls.getAndIncrement() == 0
+                        ? sampleSnapshot(false)
+                        : updatedSnapshot(false),
+                directExecutor()
+            );
+        snapshotService.loadForInitialOpen().get();
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        Player player = fakeOfflinePlayer(playerId);
+        Plugin plugin = fakePlugin(player);
+        AtomicInteger quoteCalls = new AtomicInteger();
+        MarketGuiService guiService = new MarketGuiService(
+            plugin,
+            snapshotService,
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                if (quoteCalls.getAndIncrement() == 0) {
+                    throw new MarketApiRequestException(
+                        409,
+                        "{\"status\":\"REJECTED\",\"code\":\"STALE_QUOTE\",\"message\":\"Snapshot is no longer current.\",\"snapshotVersion\":\"market:ff6dde56c6ed25f5\"}"
+                    );
+                }
+                return quote(side, quantity, snapshotVersion);
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                throw new AssertionError();
+            },
+            new FakeInventoryAccess(),
+            registry,
+            config
+        );
+        registry.put(
+            playerId,
+            MarketSession.tradeView("farming", "wheat", false)
+                .withQuoteRefreshPending()
+        );
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "requestQuotePairAsync",
+            UUID.class,
+            String.class,
+            String.class,
+            int.class,
+            int.class,
+            String.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+            guiService,
+            playerId,
+            "farming",
+            "wheat",
+            1,
+            1,
+            "snapshot-v1"
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("buy-token-1", updated.buyQuoteToken());
+        assertEquals("sell-token-1", updated.sellQuoteToken());
+        assertEquals(3, quoteCalls.get());
+        assertEquals(2, updated.quoteRequestVersion());
+    }
+
+    @Test
     void quantityAdjustmentIsIgnoredWhileTradeExecutionIsInFlight()
         throws Exception {
         MarketSessionRegistry registry = new MarketSessionRegistry();
