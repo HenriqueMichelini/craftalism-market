@@ -27,10 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
@@ -335,22 +335,59 @@ public final class MarketGuiService {
             colorize(item.displayName())
         );
 
-        inventory.setItem(0, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-1", 1));
-        inventory.setItem(1, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-8", 8));
-        inventory.setItem(7, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+1", 1));
-        inventory.setItem(8, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+8", 8));
-        inventory.setItem(10, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-32", 32));
-        inventory.setItem(11, quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-64", 64));
         inventory.setItem(
-            QUANTITY_DISPLAY_SLOT,
-            quantityDisplay(session.quantity(), session.quoteStatusMessage())
+            0,
+            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-1", 1)
         );
-        inventory.setItem(17, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+32", 32));
-        inventory.setItem(18, quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+64", 64));
-        inventory.setItem(20, quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-576", 1));
-        inventory.setItem(21, quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-2304", 1, true));
-        inventory.setItem(27, quantityButton(Material.GREEN_STAINED_GLASS_PANE, "&2+576", 1));
-        inventory.setItem(28, quantityButton(Material.GREEN_STAINED_GLASS_PANE, "&2+2304", 1, true));
+        inventory.setItem(
+            1,
+            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-8", 8)
+        );
+        inventory.setItem(
+            7,
+            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+1", 1)
+        );
+        inventory.setItem(
+            8,
+            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+8", 8)
+        );
+        inventory.setItem(
+            10,
+            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-32", 32)
+        );
+        inventory.setItem(
+            11,
+            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-64", 64)
+        );
+        inventory.setItem(
+            17,
+            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+32", 32)
+        );
+        inventory.setItem(
+            18,
+            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+64", 64)
+        );
+        inventory.setItem(
+            20,
+            quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-576", 1)
+        );
+        inventory.setItem(
+            21,
+            quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-2304", 1, true)
+        );
+        inventory.setItem(
+            27,
+            quantityButton(Material.GREEN_STAINED_GLASS_PANE, "&2+576", 1)
+        );
+        inventory.setItem(
+            28,
+            quantityButton(
+                Material.GREEN_STAINED_GLASS_PANE,
+                "&2+2304",
+                1,
+                true
+            )
+        );
         inventory.setItem(
             TRADE_BUY_SLOT,
             quoteActionButton(
@@ -417,18 +454,20 @@ public final class MarketGuiService {
 
     private boolean isMarketInventoryOpen(Player player) {
         try {
-            return player
-                .getOpenInventory()
-                .getTopInventory()
-                .getHolder() instanceof MarketInventoryHolder;
+            return (
+                player
+                        .getOpenInventory()
+                        .getTopInventory()
+                        .getHolder() instanceof
+                    MarketInventoryHolder
+            );
         } catch (RuntimeException error) {
             return false;
         }
     }
 
     private void replaceSession(UUID playerId, MarketSession session) {
-        sessionRegistry
-            .replace(playerId, session);
+        sessionRegistry.replace(playerId, session);
     }
 
     public void handlePlayerJoin(Player player) {
@@ -519,7 +558,9 @@ public final class MarketGuiService {
 
         sendMessage(
             player,
-            (delta > 0 ? "&a" : "&6") + "Quantity: &f" + updatedSession.quantity()
+            (delta > 0 ? "&a" : "&6") +
+                "Quantity: &f" +
+                updatedSession.quantity()
         );
         refreshTrade(player, categoryId, itemId);
     }
@@ -1202,14 +1243,10 @@ public final class MarketGuiService {
             .replace("{total}", result.totalPrice() + " " + result.currency());
     }
 
-    void queueDeferredSettlement(
-        UUID playerId,
-        DeferredSettlement settlement
-    ) {
+    void queueDeferredSettlement(UUID playerId, DeferredSettlement settlement) {
         deferredSettlements.compute(playerId, (ignored, current) -> {
-            List<DeferredSettlement> updated = current == null
-                ? new ArrayList<>()
-                : new ArrayList<>(current);
+            List<DeferredSettlement> updated =
+                current == null ? new ArrayList<>() : new ArrayList<>(current);
             updated.add(settlement);
             return List.copyOf(updated);
         });
@@ -1220,10 +1257,10 @@ public final class MarketGuiService {
                 .getLogger()
                 .warning(
                     "Deferred market " +
-                    settlement.side().name().toLowerCase() +
-                    " settlement for player " +
-                    playerId +
-                    " until they reconnect."
+                        settlement.side().name().toLowerCase() +
+                        " settlement for player " +
+                        playerId +
+                        " until they reconnect."
                 );
         }
     }
@@ -1256,14 +1293,17 @@ public final class MarketGuiService {
                         settlement
                     );
                 } else {
-                    logDeferredSettlementApplied(player.getUniqueId(), settlement);
+                    logDeferredSettlementApplied(
+                        player.getUniqueId(),
+                        settlement
+                    );
                 }
                 continue;
             }
 
             if (
                 inventoryService.count(player, settlement.material()) <
-                    settlement.result().executedQuantity()
+                settlement.result().executedQuantity()
             ) {
                 reportSellRemovalFailure(
                     player,
@@ -1297,7 +1337,10 @@ public final class MarketGuiService {
         }
 
         if (!remaining.isEmpty()) {
-            deferredSettlements.put(player.getUniqueId(), List.copyOf(remaining));
+            deferredSettlements.put(
+                player.getUniqueId(),
+                List.copyOf(remaining)
+            );
         }
         persistDeferredSettlements();
     }
@@ -1339,7 +1382,10 @@ public final class MarketGuiService {
                     "{quantity}",
                     Integer.toString(result.executedQuantity())
                 )
-                .replace("{total}", result.totalPrice() + " " + result.currency())
+                .replace(
+                    "{total}",
+                    result.totalPrice() + " " + result.currency()
+                )
         );
         return true;
     }
@@ -1366,7 +1412,10 @@ public final class MarketGuiService {
                     "{quantity}",
                     Integer.toString(result.executedQuantity())
                 )
-                .replace("{total}", result.totalPrice() + " " + result.currency())
+                .replace(
+                    "{total}",
+                    result.totalPrice() + " " + result.currency()
+                )
         );
         return true;
     }
@@ -1458,11 +1507,15 @@ public final class MarketGuiService {
             return null;
         }
 
-        Logger logger = plugin.getLogger() != null
-            ? plugin.getLogger()
-            : Logger.getLogger(MarketGuiService.class.getName());
+        Logger logger =
+            plugin.getLogger() != null
+                ? plugin.getLogger()
+                : Logger.getLogger(MarketGuiService.class.getName());
         return new DeferredSettlementStore(
-            plugin.getDataFolder().toPath().resolve("deferred-settlements.json"),
+            plugin
+                .getDataFolder()
+                .toPath()
+                .resolve("deferred-settlements.json"),
             logger
         );
     }
@@ -1599,7 +1652,11 @@ public final class MarketGuiService {
         return quantityButton(material, name, 1);
     }
 
-    private ItemStack quantityButton(Material material, String name, int amount) {
+    private ItemStack quantityButton(
+        Material material,
+        String name,
+        int amount
+    ) {
         return quantityButton(material, name, amount, false);
     }
 

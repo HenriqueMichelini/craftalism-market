@@ -4,10 +4,11 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.github.henriquemichelini.craftalism.market.api.MoneyValueFormatter;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -22,6 +23,8 @@ import java.util.logging.Logger;
 import org.bukkit.Material;
 
 final class DeferredSettlementStore {
+    private static final int MONEY_SCALE = 4;
+
     private final Path path;
     private final Logger logger;
 
@@ -124,8 +127,8 @@ final class DeferredSettlementStore {
             Material.valueOf(requiredString(settlement, "material")),
             new MarketExecuteResult(
                 requiredInt(result, "executedQuantity"),
-                MoneyValueFormatter.normalize(requiredString(result, "totalPrice")),
-                MoneyValueFormatter.normalize(requiredString(result, "unitPrice")),
+                normalizeMoney(requiredString(result, "totalPrice")),
+                normalizeMoney(requiredString(result, "unitPrice")),
                 requiredString(result, "currency"),
                 requiredString(result, "snapshotVersion")
             )
@@ -179,5 +182,16 @@ final class DeferredSettlementStore {
             );
         }
         return source.get(field).getAsInt();
+    }
+
+    private String normalizeMoney(String value) {
+        if (value == null || value.isBlank() || !value.matches("-?\\d+")) {
+            return value;
+        }
+
+        return new BigDecimal(value)
+            .movePointLeft(MONEY_SCALE)
+            .setScale(MONEY_SCALE, RoundingMode.UNNECESSARY)
+            .toPlainString();
     }
 }
