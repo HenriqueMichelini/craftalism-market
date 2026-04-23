@@ -673,6 +673,18 @@ public final class MarketGuiService {
             executingSession.screen() != MarketScreen.TRADE_VIEW ||
             !executingSession.executingBuy()
         ) {
+            logInfo(
+                "market.buy.click rejected: player=" +
+                    player.getUniqueId() +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", session=" +
+                    sessionSummary(
+                        sessionRegistry.get(player.getUniqueId()).orElse(null)
+                    )
+            );
             renderer.sendMessage(player, renderer.message("messages.trade-disabled"));
             refreshTrade(player, categoryId, itemId);
             return;
@@ -720,6 +732,16 @@ public final class MarketGuiService {
             !categoryId.equals(currentSession.selectedCategoryId()) ||
             !itemId.equals(currentSession.selectedItemId())
         ) {
+            logInfo(
+                "market.sell.click rejected: player=" +
+                    player.getUniqueId() +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", session=" +
+                    sessionSummary(currentSession)
+            );
             renderer.sendMessage(player, renderer.message("messages.trade-disabled"));
             refreshTrade(player, categoryId, itemId);
             return;
@@ -771,6 +793,18 @@ public final class MarketGuiService {
             .orElse(null);
 
         if (executingSession == null || !executingSession.executingSell()) {
+            logInfo(
+                "market.sell.execute rejected: player=" +
+                    player.getUniqueId() +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", session=" +
+                    sessionSummary(
+                        sessionRegistry.get(player.getUniqueId()).orElse(null)
+                    )
+            );
             renderer.sendMessage(player, renderer.message("messages.trade-disabled"));
             refreshTrade(player, categoryId, itemId);
             return;
@@ -855,12 +889,55 @@ public final class MarketGuiService {
         return ", responseBody=" + compactBody;
     }
 
+    private void logInfo(String message) {
+        if (plugin != null) {
+            plugin.getLogger().info(message);
+        }
+    }
+
+    private void logWarning(String message) {
+        if (plugin != null) {
+            plugin.getLogger().warning(message);
+        }
+    }
+
     private Throwable rootCause(Throwable error) {
         Throwable current = error;
         while (current.getCause() != null) {
             current = current.getCause();
         }
         return current;
+    }
+
+    private String sessionSummary(MarketSession session) {
+        if (session == null) {
+            return "<none>";
+        }
+
+        return (
+            "screen=" +
+            session.screen() +
+            ", readOnly=" +
+            session.readOnly() +
+            ", quantity=" +
+            session.quantity() +
+            ", quoteStatus=" +
+            session.quoteStatus() +
+            ", requestVersion=" +
+            session.quoteRequestVersion() +
+            ", buyToken=" +
+            (session.buyQuoteToken() != null) +
+            ", sellToken=" +
+            (session.sellQuoteToken() != null) +
+            ", buySnapshot=" +
+            (session.buyQuoteSnapshotVersion() != null) +
+            ", sellSnapshot=" +
+            (session.sellQuoteSnapshotVersion() != null) +
+            ", executingBuy=" +
+            session.executingBuy() +
+            ", executingSell=" +
+            session.executingSell()
+        );
     }
 
     private void rerenderTradeIfVisible(UUID playerId, MarketSession session) {
@@ -1138,8 +1215,33 @@ public final class MarketGuiService {
             pendingSession.screen() != MarketScreen.TRADE_VIEW ||
             pendingSession.quoteStatus() != MarketQuoteStatus.PENDING
         ) {
+            logInfo(
+                "market.quote.refresh skipped: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", session=" +
+                    sessionSummary(sessionRegistry.get(playerId).orElse(null))
+            );
             return;
         }
+
+        logInfo(
+            "market.quote.refresh queued: player=" +
+                playerId +
+                ", category=" +
+                categoryId +
+                ", item=" +
+                itemId +
+                ", quantity=" +
+                pendingSession.quantity() +
+                ", requestVersion=" +
+                pendingSession.quoteRequestVersion() +
+                ", snapshotVersion=" +
+                snapshot.snapshotVersion()
+        );
 
         rerenderTradeIfVisible(playerId, pendingSession);
         cancelPendingQuoteRefresh(playerId);
@@ -1174,29 +1276,88 @@ public final class MarketGuiService {
     ) {
         pendingQuoteRefreshTasks.remove(playerId);
         if (!isCurrentQuoteRequest(playerId, categoryId, itemId, quantity, requestVersion)) {
+            logInfo(
+                "market.quote.request ignored-stale: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", session=" +
+                    sessionSummary(sessionRegistry.get(playerId).orElse(null))
+            );
             return;
         }
+
+        logInfo(
+            "market.quote.request start: player=" +
+                playerId +
+                ", category=" +
+                categoryId +
+                ", item=" +
+                itemId +
+                ", quantity=" +
+                quantity +
+                ", requestVersion=" +
+                requestVersion +
+                ", snapshotVersion=" +
+                snapshotVersion
+        );
 
         plugin
             .getServer()
             .getScheduler()
             .runTaskAsynchronously(plugin, () -> {
                 try {
+                    MarketQuoteResult buyQuote = quoteClient.requestQuote(
+                        playerId,
+                        itemId,
+                        MarketQuoteSide.BUY,
+                        quantity,
+                        snapshotVersion
+                    );
+                    logInfo(
+                        "market.quote.request buy-ok: player=" +
+                            playerId +
+                            ", item=" +
+                            itemId +
+                            ", quantity=" +
+                            quantity +
+                            ", requestVersion=" +
+                            requestVersion +
+                            ", token=" +
+                            buyQuote.quoteToken() +
+                            ", snapshotVersion=" +
+                            buyQuote.snapshotVersion()
+                    );
+                    MarketQuoteResult sellQuote = quoteClient.requestQuote(
+                        playerId,
+                        itemId,
+                        MarketQuoteSide.SELL,
+                        quantity,
+                        snapshotVersion
+                    );
+                    logInfo(
+                        "market.quote.request sell-ok: player=" +
+                            playerId +
+                            ", item=" +
+                            itemId +
+                            ", quantity=" +
+                            quantity +
+                            ", requestVersion=" +
+                            requestVersion +
+                            ", token=" +
+                            sellQuote.quoteToken() +
+                            ", snapshotVersion=" +
+                            sellQuote.snapshotVersion()
+                    );
                     MarketQuotePair pair = new MarketQuotePair(
-                        quoteClient.requestQuote(
-                            playerId,
-                            itemId,
-                            MarketQuoteSide.BUY,
-                            quantity,
-                            snapshotVersion
-                        ),
-                        quoteClient.requestQuote(
-                            playerId,
-                            itemId,
-                            MarketQuoteSide.SELL,
-                            quantity,
-                            snapshotVersion
-                        )
+                        buyQuote,
+                        sellQuote
                     );
                     plugin
                         .getServer()
@@ -1212,6 +1373,24 @@ public final class MarketGuiService {
                             )
                         );
                 } catch (RuntimeException error) {
+                    Throwable rootCause = rootCause(error);
+                    logWarning(
+                        "market.quote.request failed: player=" +
+                            playerId +
+                            ", category=" +
+                            categoryId +
+                            ", item=" +
+                            itemId +
+                            ", quantity=" +
+                            quantity +
+                            ", requestVersion=" +
+                            requestVersion +
+                            ", error=" +
+                            rootCause.getClass().getSimpleName() +
+                            ": " +
+                            rootCause.getMessage() +
+                            apiResponseDetails(error)
+                    );
                     plugin
                         .getServer()
                         .getScheduler()
@@ -1247,7 +1426,36 @@ public final class MarketGuiService {
             .orElse(null);
 
         if (updated != null) {
+            logInfo(
+                "market.quote.apply success: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", session=" +
+                    sessionSummary(updated)
+            );
             rerenderTradeIfVisible(playerId, updated);
+        } else {
+            logInfo(
+                "market.quote.apply skipped: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", session=" +
+                    sessionSummary(sessionRegistry.get(playerId).orElse(null))
+            );
         }
     }
 
@@ -1271,7 +1479,36 @@ public final class MarketGuiService {
             .orElse(null);
 
         if (updated != null) {
+            logWarning(
+                "market.quote.apply failure: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", session=" +
+                    sessionSummary(updated)
+            );
             rerenderTradeIfVisible(playerId, updated);
+        } else {
+            logWarning(
+                "market.quote.apply failure-skipped: player=" +
+                    playerId +
+                    ", category=" +
+                    categoryId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", session=" +
+                    sessionSummary(sessionRegistry.get(playerId).orElse(null))
+            );
         }
     }
 
