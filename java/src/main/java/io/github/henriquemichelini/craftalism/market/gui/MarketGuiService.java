@@ -45,11 +45,109 @@ public final class MarketGuiService {
         LegacyComponentSerializer.legacyAmpersand();
     private static final LegacyComponentSerializer SECTION_SERIALIZER =
         LegacyComponentSerializer.legacySection();
-    private static final int TRADE_BUY_SLOT = 12;
-    private static final int TRADE_ITEM_SLOT = 13;
-    private static final int TRADE_SELL_SLOT = 14;
-    private static final int QUANTITY_DISPLAY_SLOT = 16;
+    private static final int QUANTITY_DISPLAY_SLOT = 22;
+    private static final int TRADE_BUY_SLOT = 23;
+    private static final int TRADE_ITEM_SLOT = 24;
+    private static final int TRADE_SELL_SLOT = 25;
     private static final int TRADE_ROWS = 4;
+    private static final List<QuantityControl> QUANTITY_CONTROLS = List.of(
+        new QuantityControl(
+            0,
+            -1,
+            Material.PINK_STAINED_GLASS_PANE,
+            "&c-1",
+            1,
+            false
+        ),
+        new QuantityControl(
+            1,
+            -8,
+            Material.PINK_STAINED_GLASS_PANE,
+            "&c-8",
+            8,
+            false
+        ),
+        new QuantityControl(
+            10,
+            -32,
+            Material.PINK_STAINED_GLASS_PANE,
+            "&c-32",
+            32,
+            false
+        ),
+        new QuantityControl(
+            11,
+            -64,
+            Material.PINK_STAINED_GLASS_PANE,
+            "&c-64",
+            64,
+            false
+        ),
+        new QuantityControl(
+            20,
+            -576,
+            Material.RED_STAINED_GLASS_PANE,
+            "&4-576",
+            1,
+            false
+        ),
+        new QuantityControl(
+            21,
+            -2304,
+            Material.RED_STAINED_GLASS_PANE,
+            "&4-2304",
+            1,
+            true
+        ),
+        new QuantityControl(
+            7,
+            1,
+            Material.LIME_STAINED_GLASS_PANE,
+            "&a+1",
+            1,
+            false
+        ),
+        new QuantityControl(
+            8,
+            8,
+            Material.LIME_STAINED_GLASS_PANE,
+            "&a+8",
+            8,
+            false
+        ),
+        new QuantityControl(
+            17,
+            32,
+            Material.LIME_STAINED_GLASS_PANE,
+            "&a+32",
+            32,
+            false
+        ),
+        new QuantityControl(
+            18,
+            64,
+            Material.LIME_STAINED_GLASS_PANE,
+            "&a+64",
+            64,
+            false
+        ),
+        new QuantityControl(
+            27,
+            576,
+            Material.GREEN_STAINED_GLASS_PANE,
+            "&2+576",
+            1,
+            false
+        ),
+        new QuantityControl(
+            28,
+            2304,
+            Material.GREEN_STAINED_GLASS_PANE,
+            "&2+2304",
+            1,
+            true
+        )
+    );
 
     private final Plugin plugin;
     private final MarketBrowseSnapshotService snapshotService;
@@ -335,59 +433,17 @@ public final class MarketGuiService {
             colorize(item.displayName())
         );
 
-        inventory.setItem(
-            0,
-            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-1", 1)
-        );
-        inventory.setItem(
-            1,
-            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-8", 8)
-        );
-        inventory.setItem(
-            7,
-            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+1", 1)
-        );
-        inventory.setItem(
-            8,
-            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+8", 8)
-        );
-        inventory.setItem(
-            10,
-            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-32", 32)
-        );
-        inventory.setItem(
-            11,
-            quantityButton(Material.PINK_STAINED_GLASS_PANE, "&c-64", 64)
-        );
-        inventory.setItem(
-            17,
-            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+32", 32)
-        );
-        inventory.setItem(
-            18,
-            quantityButton(Material.LIME_STAINED_GLASS_PANE, "&a+64", 64)
-        );
-        inventory.setItem(
-            20,
-            quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-576", 1)
-        );
-        inventory.setItem(
-            21,
-            quantityButton(Material.RED_STAINED_GLASS_PANE, "&4-2304", 1, true)
-        );
-        inventory.setItem(
-            27,
-            quantityButton(Material.GREEN_STAINED_GLASS_PANE, "&2+576", 1)
-        );
-        inventory.setItem(
-            28,
-            quantityButton(
-                Material.GREEN_STAINED_GLASS_PANE,
-                "&2+2304",
-                1,
-                true
-            )
-        );
+        for (QuantityControl control : QUANTITY_CONTROLS) {
+            inventory.setItem(
+                control.slot(),
+                quantityButton(
+                    control.material(),
+                    control.name(),
+                    control.itemAmount(),
+                    control.enchanted()
+                )
+            );
+        }
         inventory.setItem(
             TRADE_BUY_SLOT,
             quoteActionButton(
@@ -1740,21 +1796,12 @@ public final class MarketGuiService {
     }
 
     private Integer tradeQuantityDeltaForSlot(int rawSlot) {
-        return switch (rawSlot) {
-            case 0 -> -1;
-            case 1 -> -8;
-            case 10 -> -32;
-            case 11 -> -64;
-            case 20 -> -576;
-            case 21 -> -2304;
-            case 7 -> 1;
-            case 8 -> 8;
-            case 17 -> 32;
-            case 18 -> 64;
-            case 27 -> 576;
-            case 28 -> 2304;
-            default -> null;
-        };
+        return QUANTITY_CONTROLS
+            .stream()
+            .filter(control -> control.slot() == rawSlot)
+            .map(QuantityControl::delta)
+            .findFirst()
+            .orElse(null);
     }
 
     private String title(String path) {
@@ -1791,5 +1838,14 @@ public final class MarketGuiService {
         MarketQuoteSide side,
         Material material,
         MarketExecuteResult result
+    ) {}
+
+    private record QuantityControl(
+        int slot,
+        int delta,
+        Material material,
+        String name,
+        int itemAmount,
+        boolean enchanted
     ) {}
 }

@@ -25,6 +25,7 @@ import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -950,6 +951,85 @@ class MarketGuiServiceTest {
         assertEquals(-64, method.invoke(guiService, 11));
         assertEquals(-576, method.invoke(guiService, 20));
         assertEquals(-2304, method.invoke(guiService, 21));
+    }
+
+    @Test
+    void tradeQuantityControlsMatchAuditLayout() throws Exception {
+        Field field = MarketGuiService.class.getDeclaredField(
+            "QUANTITY_CONTROLS"
+        );
+        field.setAccessible(true);
+        List<?> controls = (List<?>) field.get(null);
+        Map<Integer, ExpectedQuantityControl> expected = Map.ofEntries(
+            Map.entry(
+                7,
+                new ExpectedQuantityControl(1, Material.LIME_STAINED_GLASS_PANE, 1, false)
+            ),
+            Map.entry(
+                8,
+                new ExpectedQuantityControl(8, Material.LIME_STAINED_GLASS_PANE, 8, false)
+            ),
+            Map.entry(
+                17,
+                new ExpectedQuantityControl(32, Material.LIME_STAINED_GLASS_PANE, 32, false)
+            ),
+            Map.entry(
+                18,
+                new ExpectedQuantityControl(64, Material.LIME_STAINED_GLASS_PANE, 64, false)
+            ),
+            Map.entry(
+                27,
+                new ExpectedQuantityControl(576, Material.GREEN_STAINED_GLASS_PANE, 1, false)
+            ),
+            Map.entry(
+                28,
+                new ExpectedQuantityControl(2304, Material.GREEN_STAINED_GLASS_PANE, 1, true)
+            ),
+            Map.entry(
+                0,
+                new ExpectedQuantityControl(-1, Material.PINK_STAINED_GLASS_PANE, 1, false)
+            ),
+            Map.entry(
+                1,
+                new ExpectedQuantityControl(-8, Material.PINK_STAINED_GLASS_PANE, 8, false)
+            ),
+            Map.entry(
+                10,
+                new ExpectedQuantityControl(-32, Material.PINK_STAINED_GLASS_PANE, 32, false)
+            ),
+            Map.entry(
+                11,
+                new ExpectedQuantityControl(-64, Material.PINK_STAINED_GLASS_PANE, 64, false)
+            ),
+            Map.entry(
+                20,
+                new ExpectedQuantityControl(-576, Material.RED_STAINED_GLASS_PANE, 1, false)
+            ),
+            Map.entry(
+                21,
+                new ExpectedQuantityControl(-2304, Material.RED_STAINED_GLASS_PANE, 1, true)
+            )
+        );
+
+        assertEquals(expected.size(), controls.size());
+        for (Object control : controls) {
+            int slot = (int) recordValue(control, "slot");
+            ExpectedQuantityControl expectedControl = expected.get(slot);
+
+            assertEquals(expectedControl.delta(), recordValue(control, "delta"));
+            assertEquals(
+                expectedControl.material(),
+                recordValue(control, "material")
+            );
+            assertEquals(
+                expectedControl.itemAmount(),
+                recordValue(control, "itemAmount")
+            );
+            assertEquals(
+                expectedControl.enchanted(),
+                recordValue(control, "enchanted")
+            );
+        }
     }
 
     @Test
@@ -2106,6 +2186,20 @@ class MarketGuiServiceTest {
         }
         return null;
     }
+
+    private Object recordValue(Object record, String methodName)
+        throws Exception {
+        Method method = record.getClass().getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        return method.invoke(record);
+    }
+
+    private record ExpectedQuantityControl(
+        int delta,
+        Material material,
+        int itemAmount,
+        boolean enchanted
+    ) {}
 
     private static final class FakeInventoryAccess
         implements MarketInventoryAccess
