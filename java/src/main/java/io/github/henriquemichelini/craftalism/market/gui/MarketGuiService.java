@@ -45,10 +45,9 @@ public final class MarketGuiService {
         LegacyComponentSerializer.legacyAmpersand();
     private static final LegacyComponentSerializer SECTION_SERIALIZER =
         LegacyComponentSerializer.legacySection();
-    private static final int QUANTITY_DISPLAY_SLOT = 22;
-    private static final int TRADE_BUY_SLOT = 23;
-    private static final int TRADE_ITEM_SLOT = 24;
-    private static final int TRADE_SELL_SLOT = 28;
+    private static final int TRADE_BUY_SLOT = 11;
+    private static final int TRADE_ITEM_SLOT = 13;
+    private static final int TRADE_SELL_SLOT = 15;
     private static final int TRADE_ROWS = 4;
     private static final List<QuantityControl> QUANTITY_CONTROLS = List.of(
         new QuantityControl(
@@ -1696,8 +1695,8 @@ public final class MarketGuiService {
             name = "&6" + action + " Quote Pending";
         } else if (!readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE) {
             material = "Buy".equals(action)
-                ? Material.EMERALD
-                : Material.REDSTONE;
+                ? Material.SLIME_BLOCK
+                : Material.HONEY_BLOCK;
             name = "&a" + action + " Now";
         }
 
@@ -1796,8 +1795,7 @@ public final class MarketGuiService {
     }
 
     private Integer tradeQuantityDeltaForSlot(int rawSlot) {
-        return QUANTITY_CONTROLS
-            .stream()
+        return QUANTITY_CONTROLS.stream()
             .filter(control -> control.slot() == rawSlot)
             .map(QuantityControl::delta)
             .findFirst()
