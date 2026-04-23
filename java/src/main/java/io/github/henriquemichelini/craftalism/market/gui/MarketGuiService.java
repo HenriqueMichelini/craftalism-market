@@ -48,7 +48,7 @@ public final class MarketGuiService {
     private static final int QUANTITY_DISPLAY_SLOT = 22;
     private static final int TRADE_BUY_SLOT = 23;
     private static final int TRADE_ITEM_SLOT = 24;
-    private static final int TRADE_SELL_SLOT = 25;
+    private static final int TRADE_SELL_SLOT = 28;
     private static final int TRADE_ROWS = 4;
     private static final List<QuantityControl> QUANTITY_CONTROLS = List.of(
         new QuantityControl(
@@ -68,7 +68,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            10,
+            9,
             -32,
             Material.PINK_STAINED_GLASS_PANE,
             "&c-32",
@@ -76,7 +76,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            11,
+            10,
             -64,
             Material.PINK_STAINED_GLASS_PANE,
             "&c-64",
@@ -84,7 +84,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            20,
+            18,
             -576,
             Material.RED_STAINED_GLASS_PANE,
             "&4-576",
@@ -92,7 +92,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            21,
+            19,
             -2304,
             Material.RED_STAINED_GLASS_PANE,
             "&4-2304",
@@ -116,7 +116,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            17,
+            16,
             32,
             Material.LIME_STAINED_GLASS_PANE,
             "&a+32",
@@ -124,7 +124,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            18,
+            17,
             64,
             Material.LIME_STAINED_GLASS_PANE,
             "&a+64",
@@ -132,7 +132,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            27,
+            25,
             576,
             Material.GREEN_STAINED_GLASS_PANE,
             "&2+576",
@@ -140,7 +140,7 @@ public final class MarketGuiService {
             false
         ),
         new QuantityControl(
-            28,
+            26,
             2304,
             Material.GREEN_STAINED_GLASS_PANE,
             "&2+2304",

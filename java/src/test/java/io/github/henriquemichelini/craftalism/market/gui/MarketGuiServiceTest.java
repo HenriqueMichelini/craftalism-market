@@ -941,16 +941,16 @@ class MarketGuiServiceTest {
 
         assertEquals(1, method.invoke(guiService, 7));
         assertEquals(8, method.invoke(guiService, 8));
-        assertEquals(32, method.invoke(guiService, 17));
-        assertEquals(64, method.invoke(guiService, 18));
-        assertEquals(576, method.invoke(guiService, 27));
-        assertEquals(2304, method.invoke(guiService, 28));
+        assertEquals(32, method.invoke(guiService, 16));
+        assertEquals(64, method.invoke(guiService, 17));
+        assertEquals(576, method.invoke(guiService, 25));
+        assertEquals(2304, method.invoke(guiService, 26));
         assertEquals(-1, method.invoke(guiService, 0));
         assertEquals(-8, method.invoke(guiService, 1));
-        assertEquals(-32, method.invoke(guiService, 10));
-        assertEquals(-64, method.invoke(guiService, 11));
-        assertEquals(-576, method.invoke(guiService, 20));
-        assertEquals(-2304, method.invoke(guiService, 21));
+        assertEquals(-32, method.invoke(guiService, 9));
+        assertEquals(-64, method.invoke(guiService, 10));
+        assertEquals(-576, method.invoke(guiService, 18));
+        assertEquals(-2304, method.invoke(guiService, 19));
     }
 
     @Test
@@ -970,19 +970,19 @@ class MarketGuiServiceTest {
                 new ExpectedQuantityControl(8, Material.LIME_STAINED_GLASS_PANE, 8, false)
             ),
             Map.entry(
-                17,
+                16,
                 new ExpectedQuantityControl(32, Material.LIME_STAINED_GLASS_PANE, 32, false)
             ),
             Map.entry(
-                18,
+                17,
                 new ExpectedQuantityControl(64, Material.LIME_STAINED_GLASS_PANE, 64, false)
             ),
             Map.entry(
-                27,
+                25,
                 new ExpectedQuantityControl(576, Material.GREEN_STAINED_GLASS_PANE, 1, false)
             ),
             Map.entry(
-                28,
+                26,
                 new ExpectedQuantityControl(2304, Material.GREEN_STAINED_GLASS_PANE, 1, true)
             ),
             Map.entry(
@@ -994,19 +994,19 @@ class MarketGuiServiceTest {
                 new ExpectedQuantityControl(-8, Material.PINK_STAINED_GLASS_PANE, 8, false)
             ),
             Map.entry(
-                10,
+                9,
                 new ExpectedQuantityControl(-32, Material.PINK_STAINED_GLASS_PANE, 32, false)
             ),
             Map.entry(
-                11,
+                10,
                 new ExpectedQuantityControl(-64, Material.PINK_STAINED_GLASS_PANE, 64, false)
             ),
             Map.entry(
-                20,
+                18,
                 new ExpectedQuantityControl(-576, Material.RED_STAINED_GLASS_PANE, 1, false)
             ),
             Map.entry(
-                21,
+                19,
                 new ExpectedQuantityControl(-2304, Material.RED_STAINED_GLASS_PANE, 1, true)
             )
         );
