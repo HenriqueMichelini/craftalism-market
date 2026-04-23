@@ -592,7 +592,11 @@ public final class MarketGuiService {
                     return session;
                 }
 
-                int quantity = Math.max(1, session.quantity() + delta);
+                int quantity = Math.min(
+                    2304,
+                    Math.max(1, session.quantity() + delta)
+                );
+
                 if (quantity == session.quantity()) {
                     return session;
                 }
