@@ -963,51 +963,111 @@ class MarketGuiServiceTest {
         Map<Integer, ExpectedQuantityControl> expected = Map.ofEntries(
             Map.entry(
                 7,
-                new ExpectedQuantityControl(1, Material.LIME_STAINED_GLASS_PANE, 1, false)
+                new ExpectedQuantityControl(
+                    1,
+                    Material.LIME_STAINED_GLASS_PANE,
+                    1,
+                    false
+                )
             ),
             Map.entry(
                 8,
-                new ExpectedQuantityControl(8, Material.LIME_STAINED_GLASS_PANE, 8, false)
+                new ExpectedQuantityControl(
+                    8,
+                    Material.LIME_STAINED_GLASS_PANE,
+                    8,
+                    false
+                )
             ),
             Map.entry(
                 16,
-                new ExpectedQuantityControl(32, Material.LIME_STAINED_GLASS_PANE, 32, false)
+                new ExpectedQuantityControl(
+                    32,
+                    Material.LIME_STAINED_GLASS_PANE,
+                    32,
+                    false
+                )
             ),
             Map.entry(
                 17,
-                new ExpectedQuantityControl(64, Material.LIME_STAINED_GLASS_PANE, 64, false)
+                new ExpectedQuantityControl(
+                    64,
+                    Material.LIME_STAINED_GLASS_PANE,
+                    64,
+                    false
+                )
             ),
             Map.entry(
                 25,
-                new ExpectedQuantityControl(576, Material.GREEN_STAINED_GLASS_PANE, 1, false)
+                new ExpectedQuantityControl(
+                    576,
+                    Material.GREEN_STAINED_GLASS_PANE,
+                    1,
+                    false
+                )
             ),
             Map.entry(
                 26,
-                new ExpectedQuantityControl(2304, Material.GREEN_STAINED_GLASS_PANE, 1, true)
+                new ExpectedQuantityControl(
+                    2304,
+                    Material.GREEN_STAINED_GLASS_PANE,
+                    1,
+                    true
+                )
             ),
             Map.entry(
                 0,
-                new ExpectedQuantityControl(-1, Material.PINK_STAINED_GLASS_PANE, 1, false)
+                new ExpectedQuantityControl(
+                    -1,
+                    Material.PINK_STAINED_GLASS_PANE,
+                    1,
+                    false
+                )
             ),
             Map.entry(
                 1,
-                new ExpectedQuantityControl(-8, Material.PINK_STAINED_GLASS_PANE, 8, false)
+                new ExpectedQuantityControl(
+                    -8,
+                    Material.PINK_STAINED_GLASS_PANE,
+                    8,
+                    false
+                )
             ),
             Map.entry(
                 9,
-                new ExpectedQuantityControl(-32, Material.PINK_STAINED_GLASS_PANE, 32, false)
+                new ExpectedQuantityControl(
+                    -32,
+                    Material.PINK_STAINED_GLASS_PANE,
+                    32,
+                    false
+                )
             ),
             Map.entry(
                 10,
-                new ExpectedQuantityControl(-64, Material.PINK_STAINED_GLASS_PANE, 64, false)
+                new ExpectedQuantityControl(
+                    -64,
+                    Material.PINK_STAINED_GLASS_PANE,
+                    64,
+                    false
+                )
             ),
             Map.entry(
                 18,
-                new ExpectedQuantityControl(-576, Material.RED_STAINED_GLASS_PANE, 1, false)
+                new ExpectedQuantityControl(
+                    -576,
+                    Material.RED_STAINED_GLASS_PANE,
+                    1,
+                    false
+                )
             ),
             Map.entry(
                 19,
-                new ExpectedQuantityControl(-2304, Material.RED_STAINED_GLASS_PANE, 1, true)
+                new ExpectedQuantityControl(
+                    -2304,
+                    Material.RED_STAINED_GLASS_PANE,
+                    1,
+                    true
+                )
             )
         );
 
@@ -1016,7 +1076,10 @@ class MarketGuiServiceTest {
             int slot = (int) recordValue(control, "slot");
             ExpectedQuantityControl expectedControl = expected.get(slot);
 
-            assertEquals(expectedControl.delta(), recordValue(control, "delta"));
+            assertEquals(
+                expectedControl.delta(),
+                recordValue(control, "delta")
+            );
             assertEquals(
                 expectedControl.material(),
                 recordValue(control, "material")
@@ -1042,14 +1105,11 @@ class MarketGuiServiceTest {
         );
         quantityDelta.setAccessible(true);
 
-        for (
-            String fieldName : List.of(
-                "TRADE_BUY_SLOT",
-                "TRADE_ITEM_SLOT",
-                "TRADE_SELL_SLOT",
-                "QUANTITY_DISPLAY_SLOT"
-            )
-        ) {
+        for (String fieldName : List.of(
+            "TRADE_BUY_SLOT",
+            "TRADE_ITEM_SLOT",
+            "TRADE_SELL_SLOT"
+        )) {
             Field field = MarketGuiService.class.getDeclaredField(fieldName);
             field.setAccessible(true);
             int slot = field.getInt(null);
@@ -1084,7 +1144,10 @@ class MarketGuiServiceTest {
             registry,
             new YamlConfiguration()
         );
-        registry.put(playerId, MarketSession.tradeView("farming", "wheat", false));
+        registry.put(
+            playerId,
+            MarketSession.tradeView("farming", "wheat", false)
+        );
 
         Method method = MarketGuiService.class.getDeclaredMethod(
             "adjustTradeQuantity",
