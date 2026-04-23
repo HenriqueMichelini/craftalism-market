@@ -65,6 +65,23 @@ class MarketSessionTest {
     }
 
     @Test
+    void partialQuoteResultsKeepExecutableSideAvailable() {
+        MarketSession session = MarketSession.tradeView("farming", "wheat", false);
+
+        MarketSession updated = session.withQuoteResults(
+                null,
+                new MarketQuoteResult(MarketQuoteSide.SELL, 1, "4.1", "4.1", "coins", "sell-token", "snapshot-sell"),
+                "Sell quote ready. &cThere is not enough stock for that purchase."
+        );
+
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Sell quote ready. &cThere is not enough stock for that purchase.", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals("sell-token", updated.sellQuoteToken());
+        assertEquals("4.1 coins", updated.sellQuotedTotal());
+    }
+
+    @Test
     void readOnlyPreviewPreservesSelectionButDisablesTrading() {
         MarketSession session = MarketSession.tradeView("farming", "wheat", false).withQuantity(3);
 

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.henriquemichelini.craftalism.market.api.MarketApiRequestException;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteRejectedException;
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuotePair;
@@ -1345,6 +1346,97 @@ class MarketGuiServiceTest {
         assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void buyQuoteRejectionStillAllowsSellExecution() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set(
+            "messages.rejections.INSUFFICIENT_STOCK",
+            "&cThere is not enough stock for that purchase."
+        );
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        inventoryAccess.setQuantity(Material.WHEAT, 1);
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
+        List<String> messages = new ArrayList<>();
+        Player onlinePlayer = fakeOnlinePlayer(playerId, messages);
+        AtomicInteger executeCalls = new AtomicInteger();
+        List<MarketQuoteSide> executedSides = new ArrayList<>();
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(onlinePlayer),
+            snapshotService,
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                if (side == MarketQuoteSide.BUY) {
+                    throw new MarketApiRequestException(
+                        422,
+                        "{\"status\":\"REJECTED\",\"code\":\"INSUFFICIENT_STOCK\",\"message\":\"Requested quantity exceeds restorable capacity.\",\"snapshotVersion\":\"market:a57dec47db0ebb2f\"}"
+                    );
+                }
+                return quote(side, quantity, snapshotVersion);
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                executeCalls.incrementAndGet();
+                executedSides.add(side);
+                return new MarketExecuteResult(
+                    quantity,
+                    "4.1",
+                    "4.1",
+                    "coins",
+                    "snapshot-v2"
+                );
+            },
+            inventoryAccess,
+            registry,
+            config
+        );
+
+        registry.put(
+            playerId,
+            MarketSession.tradeView("farming", "wheat", false)
+                .withQuoteRefreshPending()
+        );
+
+        Method quoteMethod = MarketGuiService.class.getDeclaredMethod(
+            "requestQuotePairAsync",
+            UUID.class,
+            String.class,
+            String.class,
+            int.class,
+            int.class,
+            String.class
+        );
+        quoteMethod.setAccessible(true);
+        quoteMethod.invoke(
+            guiService,
+            playerId,
+            "farming",
+            "wheat",
+            1,
+            1,
+            "snapshot-v1"
+        );
+
+        MarketSession quotedSession = registry.get(playerId).orElseThrow();
+        assertEquals(MarketQuoteStatus.AVAILABLE, quotedSession.quoteStatus());
+        assertTrue(quotedSession.quoteStatusMessage().contains("Sell quote ready."));
+        assertEquals(null, quotedSession.buyQuoteToken());
+        assertEquals(null, quotedSession.buyQuoteSnapshotVersion());
+        assertEquals("sell-token-1", quotedSession.sellQuoteToken());
+        assertEquals("snapshot-v1", quotedSession.sellQuoteSnapshotVersion());
+        assertEquals("4 coins", quotedSession.sellQuotedTotal());
+        assertEquals(0, executeCalls.get());
     }
 
     @Test

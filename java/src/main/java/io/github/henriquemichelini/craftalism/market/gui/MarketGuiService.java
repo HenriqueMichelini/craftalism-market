@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -32,6 +34,9 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 public final class MarketGuiService {
+    private static final Pattern REJECTION_CODE_PATTERN = Pattern.compile(
+        "\"code\"\\s*:\\s*\"([^\"]+)\""
+    );
 
     private static final int TRADE_BUY_SLOT = 11;
     private static final int TRADE_ITEM_SLOT = 13;
@@ -445,7 +450,8 @@ public final class MarketGuiService {
                 "Buy",
                 session.buyQuotedTotal(),
                 session.quoteStatus(),
-                snapshot.readOnly()
+                snapshot.readOnly(),
+                hasExecutableQuote(session, MarketQuoteSide.BUY)
             )
         );
         inventory.setItem(
@@ -458,7 +464,8 @@ public final class MarketGuiService {
                 "Sell",
                 session.sellQuotedTotal(),
                 session.quoteStatus(),
-                snapshot.readOnly()
+                snapshot.readOnly(),
+                hasExecutableQuote(session, MarketQuoteSide.SELL)
             )
         );
         inventory.setItem(
@@ -1313,63 +1320,36 @@ public final class MarketGuiService {
             .getScheduler()
             .runTaskAsynchronously(plugin, () -> {
                 try {
-                    MarketQuoteResult buyQuote = quoteClient.requestQuote(
+                    QuoteAttempt buyAttempt = requestQuote(
                         playerId,
                         itemId,
-                        MarketQuoteSide.BUY,
                         quantity,
-                        snapshotVersion
+                        requestVersion,
+                        snapshotVersion,
+                        MarketQuoteSide.BUY
                     );
-                    logInfo(
-                        "market.quote.request buy-ok: player=" +
-                            playerId +
-                            ", item=" +
-                            itemId +
-                            ", quantity=" +
-                            quantity +
-                            ", requestVersion=" +
-                            requestVersion +
-                            ", token=" +
-                            buyQuote.quoteToken() +
-                            ", snapshotVersion=" +
-                            buyQuote.snapshotVersion()
-                    );
-                    MarketQuoteResult sellQuote = quoteClient.requestQuote(
+                    QuoteAttempt sellAttempt = requestQuote(
                         playerId,
                         itemId,
-                        MarketQuoteSide.SELL,
                         quantity,
-                        snapshotVersion
-                    );
-                    logInfo(
-                        "market.quote.request sell-ok: player=" +
-                            playerId +
-                            ", item=" +
-                            itemId +
-                            ", quantity=" +
-                            quantity +
-                            ", requestVersion=" +
-                            requestVersion +
-                            ", token=" +
-                            sellQuote.quoteToken() +
-                            ", snapshotVersion=" +
-                            sellQuote.snapshotVersion()
-                    );
-                    MarketQuotePair pair = new MarketQuotePair(
-                        buyQuote,
-                        sellQuote
+                        requestVersion,
+                        snapshotVersion,
+                        MarketQuoteSide.SELL
                     );
                     plugin
                         .getServer()
                         .getScheduler()
                         .runTask(plugin, () ->
-                            applyQuotePair(
+                            applyQuoteResults(
                                 playerId,
                                 categoryId,
                                 itemId,
                                 quantity,
                                 requestVersion,
-                                pair
+                                buyAttempt.quoteResult(),
+                                sellAttempt.quoteResult(),
+                                buyAttempt.rejectionCode(),
+                                sellAttempt.rejectionCode()
                             )
                         );
                 } catch (RuntimeException error) {
@@ -1407,13 +1387,73 @@ public final class MarketGuiService {
             });
     }
 
-    private void applyQuotePair(
+    private QuoteAttempt requestQuote(
+        UUID playerId,
+        String itemId,
+        int quantity,
+        int requestVersion,
+        String snapshotVersion,
+        MarketQuoteSide side
+    ) {
+        try {
+            MarketQuoteResult quoteResult = quoteClient.requestQuote(
+                playerId,
+                itemId,
+                side,
+                quantity,
+                snapshotVersion
+            );
+            logInfo(
+                "market.quote.request " +
+                    side.name().toLowerCase() +
+                    "-ok: player=" +
+                    playerId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", token=" +
+                    quoteResult.quoteToken() +
+                    ", snapshotVersion=" +
+                    quoteResult.snapshotVersion()
+            );
+            return new QuoteAttempt(quoteResult, null);
+        } catch (RuntimeException error) {
+            String rejectionCode = quoteRejectionCode(error);
+            if (rejectionCode == null) {
+                throw error;
+            }
+
+            logInfo(
+                "market.quote.request " +
+                    side.name().toLowerCase() +
+                    "-rejected: player=" +
+                    playerId +
+                    ", item=" +
+                    itemId +
+                    ", quantity=" +
+                    quantity +
+                    ", requestVersion=" +
+                    requestVersion +
+                    ", code=" +
+                    rejectionCode
+            );
+            return new QuoteAttempt(null, rejectionCode);
+        }
+    }
+
+    private void applyQuoteResults(
         UUID playerId,
         String categoryId,
         String itemId,
         int quantity,
         int requestVersion,
-        MarketQuotePair pair
+        MarketQuoteResult buyQuote,
+        MarketQuoteResult sellQuote,
+        String buyRejectionCode,
+        String sellRejectionCode
     ) {
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
@@ -1421,7 +1461,16 @@ public final class MarketGuiService {
                     return current;
                 }
 
-                return current.withQuotePair(pair);
+                return current.withQuoteResults(
+                    buyQuote,
+                    sellQuote,
+                    quoteStatusMessage(
+                        buyQuote,
+                        sellQuote,
+                        buyRejectionCode,
+                        sellRejectionCode
+                    )
+                );
             })
             .orElse(null);
 
@@ -1457,6 +1506,30 @@ public final class MarketGuiService {
                     sessionSummary(sessionRegistry.get(playerId).orElse(null))
             );
         }
+    }
+
+    private String quoteStatusMessage(
+        MarketQuoteResult buyQuote,
+        MarketQuoteResult sellQuote,
+        String buyRejectionCode,
+        String sellRejectionCode
+    ) {
+        if (buyQuote != null && sellQuote != null) {
+            return "Quotes ready";
+        }
+        if (buyQuote != null && sellRejectionCode != null) {
+            return "Buy quote ready. " + rejectionMessage(sellRejectionCode);
+        }
+        if (sellQuote != null && buyRejectionCode != null) {
+            return "Sell quote ready. " + rejectionMessage(buyRejectionCode);
+        }
+        if (buyRejectionCode != null) {
+            return rejectionMessage(buyRejectionCode);
+        }
+        if (sellRejectionCode != null) {
+            return rejectionMessage(sellRejectionCode);
+        }
+        return renderer.message("messages.quote-unavailable");
     }
 
     private void applyQuoteRefreshFailure(
@@ -1540,12 +1613,17 @@ public final class MarketGuiService {
     }
 
     private boolean hasQuotePair(MarketSession session) {
-        return (
-            session.buyQuoteToken() != null &&
-            session.sellQuoteToken() != null &&
-            session.buyQuoteSnapshotVersion() != null &&
-            session.sellQuoteSnapshotVersion() != null
-        );
+        return hasExecutableQuote(session, MarketQuoteSide.BUY) &&
+            hasExecutableQuote(session, MarketQuoteSide.SELL);
+    }
+
+    private boolean hasExecutableQuote(
+        MarketSession session,
+        MarketQuoteSide side
+    ) {
+        return quoteToken(session, side) != null &&
+            quoteSnapshotVersion(session, side) != null &&
+            quotedTotal(session, side) != null;
     }
 
     private String quoteToken(MarketSession session, MarketQuoteSide side) {
@@ -1561,6 +1639,12 @@ public final class MarketGuiService {
         return side == MarketQuoteSide.BUY
             ? session.buyQuoteSnapshotVersion()
             : session.sellQuoteSnapshotVersion();
+    }
+
+    private String quotedTotal(MarketSession session, MarketQuoteSide side) {
+        return side == MarketQuoteSide.BUY
+            ? session.buyQuotedTotal()
+            : session.sellQuotedTotal();
     }
 
     private void applyTradeSnapshotRefresh(
@@ -1711,6 +1795,28 @@ public final class MarketGuiService {
     private String rejectionMessage(String code) {
         return renderer.rejectionMessage(code);
     }
+
+    private String quoteRejectionCode(RuntimeException error) {
+        if (!(error instanceof MarketApiRequestException requestException)) {
+            return null;
+        }
+        if (requestException.statusCode() != 422) {
+            return null;
+        }
+
+        String responseBody = requestException.responseBody();
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+
+        Matcher matcher = REJECTION_CODE_PATTERN.matcher(responseBody);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private record QuoteAttempt(
+        MarketQuoteResult quoteResult,
+        String rejectionCode
+    ) {}
 
     private Integer tradeQuantityDeltaForSlot(int rawSlot) {
         return QUANTITY_CONTROLS.stream()

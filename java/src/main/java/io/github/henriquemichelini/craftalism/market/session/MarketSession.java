@@ -1,6 +1,7 @@
 package io.github.henriquemichelini.craftalism.market.session;
 
 import io.github.henriquemichelini.craftalism.market.api.MarketQuotePair;
+import io.github.henriquemichelini.craftalism.market.api.MarketQuoteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
 
 public record MarketSession(
@@ -177,6 +178,15 @@ public record MarketSession(
     }
 
     public MarketSession withQuotePair(MarketQuotePair pair) {
+        return withQuoteResults(pair.buy(), pair.sell(), "Quotes ready");
+    }
+
+    public MarketSession withQuoteResults(
+            MarketQuoteResult buyQuote,
+            MarketQuoteResult sellQuote,
+            String message
+    ) {
+        boolean hasAnyQuote = buyQuote != null || sellQuote != null;
         return new MarketSession(
                 screen,
                 selectedCategoryId,
@@ -184,14 +194,14 @@ public record MarketSession(
                 readOnly,
                 quantity,
                 quoteRequestVersion,
-                MarketQuoteStatus.AVAILABLE,
-                "Quotes ready",
-                pair.buy().totalPrice() + " " + pair.buy().currency(),
-                pair.sell().totalPrice() + " " + pair.sell().currency(),
-                pair.buy().quoteToken(),
-                pair.sell().quoteToken(),
-                pair.buy().snapshotVersion(),
-                pair.sell().snapshotVersion(),
+                readOnly ? MarketQuoteStatus.DISABLED : (hasAnyQuote ? MarketQuoteStatus.AVAILABLE : MarketQuoteStatus.UNAVAILABLE),
+                message,
+                buyQuote == null ? null : buyQuote.totalPrice() + " " + buyQuote.currency(),
+                sellQuote == null ? null : sellQuote.totalPrice() + " " + sellQuote.currency(),
+                buyQuote == null ? null : buyQuote.quoteToken(),
+                sellQuote == null ? null : sellQuote.quoteToken(),
+                buyQuote == null ? null : buyQuote.snapshotVersion(),
+                sellQuote == null ? null : sellQuote.snapshotVersion(),
                 false,
                 false
         );

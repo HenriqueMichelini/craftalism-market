@@ -108,21 +108,29 @@ final class MarketGuiRenderer {
         String action,
         String quotedTotal,
         MarketQuoteStatus quoteStatus,
-        boolean readOnly
+        boolean readOnly,
+        boolean executable
     ) {
         List<String> lore = new ArrayList<>();
         lore.add(colorize("&7Click to execute the latest quote."));
         if (quotedTotal != null) {
             lore.add(colorize("&7Latest quoted total: &f" + quotedTotal));
         }
-        lore.add(colorize("&7State: &f" + quoteStatusLabel(quoteStatus, null)));
+        String stateLabel = readOnly
+            ? quoteStatusLabel(MarketQuoteStatus.DISABLED, null)
+            : quoteStatus == MarketQuoteStatus.PENDING
+                ? quoteStatusLabel(MarketQuoteStatus.PENDING, null)
+                : executable
+                    ? quoteStatusLabel(MarketQuoteStatus.AVAILABLE, null)
+                    : quoteStatusLabel(MarketQuoteStatus.UNAVAILABLE, null);
+        lore.add(colorize("&7State: &f" + stateLabel));
 
         Material material = Material.BARRIER;
         String name = "&c" + action + " Unavailable";
         if (!readOnly && quoteStatus == MarketQuoteStatus.PENDING) {
             material = Material.CLOCK;
             name = "&6" + action + " Quote Pending";
-        } else if (!readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE) {
+        } else if (!readOnly && executable) {
             material = "Buy".equals(action)
                 ? Material.SLIME_BLOCK
                 : Material.HONEY_BLOCK;
