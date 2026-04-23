@@ -619,7 +619,6 @@ public final class MarketGuiService {
                 updatedSession.quantity()
         );
         refreshTrade(player, categoryId, itemId);
-        requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
     }
 
     private void refreshTrade(Player player, String categoryId, String itemId) {
@@ -753,7 +752,6 @@ public final class MarketGuiService {
             );
             if (updated != null) {
                 rerenderTradeIfVisible(player.getUniqueId(), updated);
-                requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
             }
             return;
         }

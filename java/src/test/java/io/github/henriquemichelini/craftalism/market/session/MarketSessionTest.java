@@ -45,7 +45,7 @@ class MarketSessionTest {
     }
 
     @Test
-    void quantityChangeClearsExistingQuoteStateAndMarksRefreshPending() {
+    void quantityChangeRemainsLocalAndPreservesExistingQuoteState() {
         MarketSession session = MarketSession.tradeView("farming", "wheat", false)
                 .withQuotePair(new MarketQuotePair(
                         new MarketQuoteResult(MarketQuoteSide.BUY, 1, "4.8", "4.8", "coins", "buy-token", "snapshot-buy"),
@@ -55,11 +55,11 @@ class MarketSessionTest {
         MarketSession updated = session.withQuantity(6);
 
         assertEquals(6, updated.quantity());
-        assertEquals(session.quoteRequestVersion() + 1, updated.quoteRequestVersion());
-        assertEquals(MarketQuoteStatus.PENDING, updated.quoteStatus());
-        assertEquals("Refreshing quote...", updated.quoteStatusMessage());
-        assertEquals(null, updated.buyQuotedTotal());
-        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(session.quoteRequestVersion(), updated.quoteRequestVersion());
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Quotes ready", updated.quoteStatusMessage());
+        assertEquals("4.8 coins", updated.buyQuotedTotal());
+        assertEquals("sell-token", updated.sellQuoteToken());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }

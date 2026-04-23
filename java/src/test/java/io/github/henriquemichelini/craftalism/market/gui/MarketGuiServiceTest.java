@@ -1171,7 +1171,84 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void sellQuantityAdjustmentRefreshesQuoteForAdjustedQuantity()
+    void quantityAdjustmentUpdatesLocalStateWithoutQuoteClientCalls()
+        throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        List<String> messages = new ArrayList<>();
+        AtomicInteger quoteCalls = new AtomicInteger();
+        Player onlinePlayer = fakeOnlinePlayer(playerId, messages);
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(onlinePlayer),
+            new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                throw new AssertionError();
+            },
+            new FakeInventoryAccess(),
+            registry,
+            new YamlConfiguration()
+        );
+        registry.put(
+            playerId,
+            MarketSession.tradeView("farming", "wheat", false)
+                .withQuotePair(
+                    new MarketQuotePair(
+                        new MarketQuoteResult(
+                            MarketQuoteSide.BUY,
+                            1,
+                            "4.8",
+                            "4.8",
+                            "coins",
+                            "buy-token",
+                            "snapshot-v1"
+                        ),
+                        new MarketQuoteResult(
+                            MarketQuoteSide.SELL,
+                            1,
+                            "4.1",
+                            "4.1",
+                            "coins",
+                            "sell-token",
+                            "snapshot-v1"
+                        )
+                    )
+                )
+        );
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "adjustTradeQuantity",
+            Player.class,
+            String.class,
+            String.class,
+            int.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, onlinePlayer, "farming", "wheat", 1);
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(2, updated.quantity());
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("buy-token", updated.buyQuoteToken());
+        assertEquals("sell-token", updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
+        assertTrue(
+            messages.stream().anyMatch(message -> message.contains("Quantity:"))
+        );
+    }
+
+    @Test
+    void sellQuantityAdjustmentRemainsLocalWithoutQuoteClientCalls()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
@@ -1186,12 +1263,15 @@ class MarketGuiServiceTest {
         MarketBrowseSnapshotService snapshotService =
             new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
         snapshotService.loadForInitialOpen().get();
+        AtomicInteger quoteCalls = new AtomicInteger();
         Player offlinePlayer = fakeOfflinePlayer(playerId);
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(offlinePlayer),
             snapshotService,
-            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) ->
-                quote(side, quantity, snapshotVersion),
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                quoteCalls.incrementAndGet();
+                return quote(side, quantity, snapshotVersion);
+            },
             (
                 ignoredPlayerId,
                 itemId,
@@ -1249,12 +1329,10 @@ class MarketGuiServiceTest {
         assertEquals(2, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
         assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals(
-            availableSession.quoteRequestVersion() + 1,
-            updated.quoteRequestVersion()
-        );
-        assertEquals("buy-token-2", updated.buyQuoteToken());
-        assertEquals("sell-token-2", updated.sellQuoteToken());
+        assertEquals(availableSession.quoteRequestVersion(), updated.quoteRequestVersion());
+        assertEquals("buy-token", updated.buyQuoteToken());
+        assertEquals("sell-token", updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }

@@ -57,17 +57,17 @@ public record MarketSession(
                 selectedItemId,
                 readOnly,
                 quantity,
-                quoteRequestVersion + 1,
-                readOnly ? MarketQuoteStatus.DISABLED : MarketQuoteStatus.PENDING,
-                readOnly ? "Cached preview only" : "Refreshing quote...",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                false
+                quoteRequestVersion,
+                quoteStatus,
+                quoteStatusMessage,
+                buyQuotedTotal,
+                sellQuotedTotal,
+                buyQuoteToken,
+                sellQuoteToken,
+                buyQuoteSnapshotVersion,
+                sellQuoteSnapshotVersion,
+                executingBuy,
+                executingSell
         );
     }
 
