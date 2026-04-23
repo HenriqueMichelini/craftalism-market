@@ -953,6 +953,80 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void tradeActionSlotsDoNotOverlapExpandedQuantityButtons()
+        throws Exception {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+        Method quantityDelta = MarketGuiService.class.getDeclaredMethod(
+            "tradeQuantityDeltaForSlot",
+            int.class
+        );
+        quantityDelta.setAccessible(true);
+
+        for (
+            String fieldName : List.of(
+                "TRADE_BUY_SLOT",
+                "TRADE_ITEM_SLOT",
+                "TRADE_SELL_SLOT",
+                "QUANTITY_DISPLAY_SLOT"
+            )
+        ) {
+            Field field = MarketGuiService.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            int slot = field.getInt(null);
+
+            assertEquals(null, quantityDelta.invoke(guiService, slot));
+        }
+    }
+
+    @Test
+    void quantityAdjustmentDoesNotSendFeedbackWhenQuantityIsUnchanged()
+        throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        List<String> messages = new ArrayList<>();
+        MarketGuiService guiService = new MarketGuiService(
+            null,
+            new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                throw new AssertionError();
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                throw new AssertionError();
+            },
+            new FakeInventoryAccess(),
+            registry,
+            new YamlConfiguration()
+        );
+        registry.put(playerId, MarketSession.tradeView("farming", "wheat", false));
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "adjustTradeQuantity",
+            Player.class,
+            String.class,
+            String.class,
+            int.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+            guiService,
+            fakeOnlinePlayer(playerId, messages),
+            "farming",
+            "wheat",
+            -1
+        );
+
+        assertEquals(1, registry.get(playerId).orElseThrow().quantity());
+        assertTrue(messages.isEmpty());
+    }
+
+    @Test
     void sellQuantityAdjustmentPreservesTradeSessionWithoutRequestingQuote()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();

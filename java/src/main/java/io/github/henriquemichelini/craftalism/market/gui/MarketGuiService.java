@@ -45,10 +45,10 @@ public final class MarketGuiService {
         LegacyComponentSerializer.legacyAmpersand();
     private static final LegacyComponentSerializer SECTION_SERIALIZER =
         LegacyComponentSerializer.legacySection();
-    private static final int QUANTITY_DISPLAY_SLOT = 12;
-    private static final int TRADE_BUY_SLOT = 11;
+    private static final int TRADE_BUY_SLOT = 12;
     private static final int TRADE_ITEM_SLOT = 13;
-    private static final int TRADE_SELL_SLOT = 15;
+    private static final int TRADE_SELL_SLOT = 14;
+    private static final int QUANTITY_DISPLAY_SLOT = 16;
     private static final int TRADE_ROWS = 4;
 
     private final Plugin plugin;
@@ -511,6 +511,9 @@ public final class MarketGuiService {
             updatedSession == null ||
             updatedSession.screen() != MarketScreen.TRADE_VIEW
         ) {
+            return;
+        }
+        if (updatedSession.quantity() == currentSession.quantity()) {
             return;
         }
 
