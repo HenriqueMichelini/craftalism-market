@@ -1267,16 +1267,19 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void quantityAdjustmentUpdatesLocalStateWithoutQuoteClientCalls()
+    void quantityAdjustmentRequestsFreshQuotesForUpdatedQuantity()
         throws Exception {
         MarketSessionRegistry registry = new MarketSessionRegistry();
         UUID playerId = UUID.randomUUID();
         List<String> messages = new ArrayList<>();
         AtomicInteger quoteCalls = new AtomicInteger();
         Player onlinePlayer = fakeOnlinePlayer(playerId, messages);
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(onlinePlayer),
-            new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+            snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
                 quoteCalls.incrementAndGet();
                 return quote(side, quantity, snapshotVersion);
@@ -1335,16 +1338,16 @@ class MarketGuiServiceTest {
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(2, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("buy-token", updated.buyQuoteToken());
-        assertEquals("sell-token", updated.sellQuoteToken());
-        assertEquals(0, quoteCalls.get());
+        assertEquals("buy-token-2", updated.buyQuoteToken());
+        assertEquals("sell-token-2", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertTrue(
             messages.stream().anyMatch(message -> message.contains("Quantity:"))
         );
     }
 
     @Test
-    void sellQuantityAdjustmentRemainsLocalWithoutQuoteClientCalls()
+    void sellQuantityAdjustmentRequestsFreshQuotesForHeldQuantity()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
@@ -1425,10 +1428,10 @@ class MarketGuiServiceTest {
         assertEquals(2, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
         assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals(availableSession.quoteRequestVersion(), updated.quoteRequestVersion());
-        assertEquals("buy-token", updated.buyQuoteToken());
-        assertEquals("sell-token", updated.sellQuoteToken());
-        assertEquals(0, quoteCalls.get());
+        assertEquals(availableSession.quoteRequestVersion() + 1, updated.quoteRequestVersion());
+        assertEquals("buy-token-2", updated.buyQuoteToken());
+        assertEquals("sell-token-2", updated.sellQuoteToken());
+        assertEquals(2, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -2102,7 +2105,7 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void onlineSellSuccessWithPartialLocalRemovalStillReturnsSessionToReadyTrading()
+    void onlineSellSuccessWithPartialLocalRemovalLeavesTradeUnavailable()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
@@ -2196,11 +2199,14 @@ class MarketGuiServiceTest {
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(4, updated.quantity());
-        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals("buy-token-4", updated.buyQuoteToken());
-        assertEquals("sell-token-4", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals(MarketQuoteStatus.UNAVAILABLE, updated.quoteStatus());
+        assertEquals(
+            "&cSell settlement is incomplete. Trading stays disabled until it is resolved.",
+            updated.quoteStatusMessage()
+        );
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
         assertTrue(

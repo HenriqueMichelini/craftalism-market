@@ -410,7 +410,6 @@ public final class MarketGuiService {
         renderTrade(player, snapshot, category, item, session);
         replaceSession(player.getUniqueId(), session);
         if (
-            existingSession == null &&
             !session.readOnly() &&
             session.quoteStatus() == MarketQuoteStatus.AVAILABLE &&
             !hasQuotePair(session)
@@ -607,7 +606,7 @@ public final class MarketGuiService {
                     return session;
                 }
 
-                return session.withQuantity(quantity);
+                return session.withQuantityAndClearedQuoteState(quantity);
             })
             .orElse(null);
 
@@ -627,7 +626,8 @@ public final class MarketGuiService {
                 "Quantity: &f" +
                 updatedSession.quantity()
         );
-        refreshTrade(player, categoryId, itemId);
+        rerenderTradeIfVisible(player.getUniqueId(), updatedSession);
+        requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
     }
 
     private void refreshTrade(Player player, String categoryId, String itemId) {
@@ -777,7 +777,9 @@ public final class MarketGuiService {
                         return session;
                     }
 
-                    return session.withQuantity(heldQuantity);
+                    return session.withQuantityAndClearedQuoteState(
+                        heldQuantity
+                    );
                 })
                 .orElse(null);
 
@@ -790,6 +792,7 @@ public final class MarketGuiService {
             );
             if (updated != null) {
                 rerenderTradeIfVisible(player.getUniqueId(), updated);
+                requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
             }
             return;
         }
@@ -1024,13 +1027,35 @@ public final class MarketGuiService {
         MarketExecuteResult result
     ) {
         Player player = plugin.getServer().getPlayer(playerId);
+        SettlementOutcome settlementOutcome;
         if (player != null && player.isOnline()) {
-            applySettlement(player, material, result, side);
+            settlementOutcome = applySettlement(player, material, result, side);
         } else {
             settlementService.queueDeferredSettlement(
                 playerId,
                 new DeferredSettlement(side, material, result)
             );
+            settlementOutcome = SettlementOutcome.success();
+        }
+
+        if (!settlementOutcome.settled()) {
+            MarketSession updated = sessionRegistry
+                .update(playerId, current -> {
+                    if (!sameTradeSession(current, expectedSession)) {
+                        return current;
+                    }
+
+                    return current.withQuoteUnavailable(
+                        settlementOutcome.statusMessage()
+                    );
+                })
+                .orElse(null);
+
+            if (updated != null) {
+                rerenderTradeIfVisible(playerId, updated);
+                refreshTradeSnapshot(playerId, updated);
+            }
+            return;
         }
 
         MarketSession updated = sessionRegistry
@@ -1049,7 +1074,7 @@ public final class MarketGuiService {
         }
     }
 
-    private void applySettlement(
+    private SettlementOutcome applySettlement(
         Player player,
         Material material,
         MarketExecuteResult result,
@@ -1057,10 +1082,14 @@ public final class MarketGuiService {
     ) {
         if (side == MarketQuoteSide.BUY) {
             settlementService.applyBuySettlement(player, material, result);
-            return;
+            return SettlementOutcome.success();
         }
 
-        settlementService.applySellSettlement(player, material, result);
+        return settlementService.applySellSettlement(player, material, result)
+            ? SettlementOutcome.success()
+            : SettlementOutcome.failure(
+                "&cSell settlement is incomplete. Trading stays disabled until it is resolved."
+            );
     }
 
     private void applyBuyRejection(
@@ -1982,4 +2011,17 @@ public final class MarketGuiService {
         Material material,
         MarketExecuteResult result
     ) {}
+
+    private record SettlementOutcome(
+        boolean settled,
+        String statusMessage
+    ) {
+        private static SettlementOutcome success() {
+            return new SettlementOutcome(true, null);
+        }
+
+        private static SettlementOutcome failure(String statusMessage) {
+            return new SettlementOutcome(false, statusMessage);
+        }
+    }
 }

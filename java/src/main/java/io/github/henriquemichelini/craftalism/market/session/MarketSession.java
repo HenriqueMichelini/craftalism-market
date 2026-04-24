@@ -101,6 +101,10 @@ public record MarketSession(
         );
     }
 
+    public MarketSession withQuantityAndClearedQuoteState(int quantity) {
+        return withClearedQuoteState().withQuantity(quantity);
+    }
+
     public MarketSession withClearedQuoteState() {
         return new MarketSession(
                 screen,
