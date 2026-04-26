@@ -655,7 +655,7 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void staleAndExpiredBuyRejectionsRequeueFreshQuotes() throws Exception {
+    void staleAndExpiredBuyRejectionsDoNotAutoRequote() throws Exception {
         for (String code : List.of("STALE_QUOTE", "QUOTE_EXPIRED")) {
             YamlConfiguration config = new YamlConfiguration();
             config.set(
@@ -749,21 +749,21 @@ class MarketGuiServiceTest {
             MarketSession updated = registry.get(playerId).orElseThrow();
             assertEquals(5, updated.quantity());
             assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-            assertEquals("Quotes ready", updated.quoteStatusMessage());
+            assertEquals("Ready to trade", updated.quoteStatusMessage());
             assertEquals(
-                executingSession.quoteRequestVersion() + 1,
+                executingSession.quoteRequestVersion(),
                 updated.quoteRequestVersion()
             );
-            assertEquals("buy-token-5", updated.buyQuoteToken());
-            assertEquals("sell-token-5", updated.sellQuoteToken());
-            assertEquals(2, quoteCalls.get());
+            assertEquals(null, updated.buyQuoteToken());
+            assertEquals(null, updated.sellQuoteToken());
+            assertEquals(0, quoteCalls.get());
             assertFalse(updated.executingBuy());
             assertFalse(updated.executingSell());
         }
     }
 
     @Test
-    void staleAndExpiredSellRejectionsRequeueFreshQuotes() throws Exception {
+    void staleAndExpiredSellRejectionsDoNotAutoRequote() throws Exception {
         for (String code : List.of("STALE_QUOTE", "QUOTE_EXPIRED")) {
             YamlConfiguration config = new YamlConfiguration();
             config.set(
@@ -857,14 +857,14 @@ class MarketGuiServiceTest {
             MarketSession updated = registry.get(playerId).orElseThrow();
             assertEquals(5, updated.quantity());
             assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-            assertEquals("Quotes ready", updated.quoteStatusMessage());
+            assertEquals("Ready to trade", updated.quoteStatusMessage());
             assertEquals(
-                executingSession.quoteRequestVersion() + 1,
+                executingSession.quoteRequestVersion(),
                 updated.quoteRequestVersion()
             );
-            assertEquals("buy-token-5", updated.buyQuoteToken());
-            assertEquals("sell-token-5", updated.sellQuoteToken());
-            assertEquals(2, quoteCalls.get());
+            assertEquals(null, updated.buyQuoteToken());
+            assertEquals(null, updated.sellQuoteToken());
+            assertEquals(0, quoteCalls.get());
             assertFalse(updated.executingBuy());
             assertFalse(updated.executingSell());
         }
@@ -948,11 +948,11 @@ class MarketGuiServiceTest {
 
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals("buy-token-1", updated.buyQuoteToken());
-        assertEquals("sell-token-1", updated.sellQuoteToken());
-        assertEquals(3, quoteCalls.get());
-        assertEquals(2, updated.quoteRequestVersion());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(1, quoteCalls.get());
+        assertEquals(1, updated.quoteRequestVersion());
     }
 
     @Test
@@ -1267,7 +1267,7 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void quantityAdjustmentRequestsFreshQuotesForUpdatedQuantity()
+    void quantityAdjustmentDoesNotRequestFreshQuotes()
         throws Exception {
         MarketSessionRegistry registry = new MarketSessionRegistry();
         UUID playerId = UUID.randomUUID();
@@ -1338,16 +1338,16 @@ class MarketGuiServiceTest {
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(2, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("buy-token-2", updated.buyQuoteToken());
-        assertEquals("sell-token-2", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertTrue(
             messages.stream().anyMatch(message -> message.contains("Quantity:"))
         );
     }
 
     @Test
-    void sellQuantityAdjustmentRequestsFreshQuotesForHeldQuantity()
+    void sellQuantityAdjustmentDoesNotRequestFreshQuotes()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
@@ -1427,13 +1427,91 @@ class MarketGuiServiceTest {
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(2, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals(availableSession.quoteRequestVersion() + 1, updated.quoteRequestVersion());
-        assertEquals("buy-token-2", updated.buyQuoteToken());
-        assertEquals("sell-token-2", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(availableSession.quoteRequestVersion(), updated.quoteRequestVersion());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void buyExecutionRequestsQuoteAndExecutesWithoutPrefetchedQuote()
+        throws Exception {
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(sampleProvider(), directExecutor());
+        snapshotService.loadForInitialOpen().get();
+        AtomicInteger quoteCalls = new AtomicInteger();
+        AtomicInteger executeCalls = new AtomicInteger();
+        List<String> executeTokens = new ArrayList<>();
+        Player player = fakeOnlinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(player),
+            snapshotService,
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                quoteCalls.incrementAndGet();
+                assertEquals(MarketQuoteSide.BUY, side);
+                assertEquals(2, quantity);
+                return quote(side, quantity, snapshotVersion);
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                executeCalls.incrementAndGet();
+                executeTokens.add(quoteToken);
+                assertEquals(MarketQuoteSide.BUY, side);
+                assertEquals(2, quantity);
+                return new MarketExecuteResult(
+                    quantity,
+                    "10",
+                    "5",
+                    "coins",
+                    "snapshot-v2"
+                );
+            },
+            new FakeInventoryAccess(),
+            registry,
+            new YamlConfiguration()
+        );
+        MarketSession executingSession = MarketSession
+            .tradeView("farming", "wheat", false)
+            .withQuantity(2)
+            .withExecutionPending(MarketQuoteSide.BUY);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "quoteAndExecuteTradeAsync",
+            UUID.class,
+            Material.class,
+            MarketSession.class,
+            MarketQuoteSide.class,
+            String.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+            guiService,
+            playerId,
+            Material.WHEAT,
+            executingSession,
+            MarketQuoteSide.BUY,
+            "snapshot-v1"
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(1, quoteCalls.get());
+        assertEquals(1, executeCalls.get());
+        assertEquals(List.of("buy-token-2"), executeTokens);
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals(null, updated.buyQuoteToken());
+        assertFalse(updated.executingBuy());
     }
 
     @Test
@@ -1667,10 +1745,10 @@ class MarketGuiServiceTest {
         assertEquals(3, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(3, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals("buy-token-3", updated.buyQuoteToken());
-        assertEquals("sell-token-3", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -1759,10 +1837,10 @@ class MarketGuiServiceTest {
         assertEquals(1, guiService.deferredSettlementCount(playerId));
         assertEquals(3, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals("buy-token-3", updated.buyQuoteToken());
-        assertEquals("sell-token-3", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -2029,10 +2107,10 @@ class MarketGuiServiceTest {
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(4, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals("buy-token-4", updated.buyQuoteToken());
-        assertEquals("sell-token-4", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }
@@ -2122,10 +2200,10 @@ class MarketGuiServiceTest {
         assertEquals(1, guiService.deferredSettlementCount(playerId));
         assertEquals(4, updated.quantity());
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals("Quotes ready", updated.quoteStatusMessage());
-        assertEquals("buy-token-4", updated.buyQuoteToken());
-        assertEquals("sell-token-4", updated.sellQuoteToken());
-        assertEquals(2, quoteCalls.get());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(0, quoteCalls.get());
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
     }

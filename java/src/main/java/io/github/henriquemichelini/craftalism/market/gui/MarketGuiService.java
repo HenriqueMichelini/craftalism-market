@@ -409,13 +409,6 @@ public final class MarketGuiService {
         session = sessionForSnapshot(session, snapshot);
         renderTrade(player, snapshot, category, item, session);
         replaceSession(player.getUniqueId(), session);
-        if (
-            !session.readOnly() &&
-            session.quoteStatus() == MarketQuoteStatus.AVAILABLE &&
-            !hasResolvedQuoteState(session)
-        ) {
-            requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
-        }
     }
 
     private void renderTrade(
@@ -627,7 +620,6 @@ public final class MarketGuiService {
                 updatedSession.quantity()
         );
         rerenderTradeIfVisible(player.getUniqueId(), updatedSession);
-        requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
     }
 
     private void refreshTrade(Player player, String categoryId, String itemId) {
@@ -665,8 +657,6 @@ public final class MarketGuiService {
                     current.executingBuy() ||
                     current.executingSell() ||
                     current.quoteStatus() != MarketQuoteStatus.AVAILABLE ||
-                    current.buyQuoteToken() == null ||
-                    current.buyQuoteSnapshotVersion() == null ||
                     !categoryId.equals(current.selectedCategoryId()) ||
                     !itemId.equals(current.selectedItemId())
                 ) {
@@ -705,11 +695,12 @@ public final class MarketGuiService {
         }
 
         refreshTrade(player, categoryId, itemId);
-        executeTradeAsync(
+        quoteAndExecuteTradeAsync(
             player.getUniqueId(),
             item.icon(),
             executingSession,
-            MarketQuoteSide.BUY
+            MarketQuoteSide.BUY,
+            snapshot.snapshotVersion()
         );
     }
 
@@ -741,8 +732,6 @@ public final class MarketGuiService {
             currentSession.executingBuy() ||
             currentSession.executingSell() ||
             currentSession.quoteStatus() != MarketQuoteStatus.AVAILABLE ||
-            currentSession.sellQuoteToken() == null ||
-            currentSession.sellQuoteSnapshotVersion() == null ||
             !categoryId.equals(currentSession.selectedCategoryId()) ||
             !itemId.equals(currentSession.selectedItemId())
         ) {
@@ -792,7 +781,6 @@ public final class MarketGuiService {
             );
             if (updated != null) {
                 rerenderTradeIfVisible(player.getUniqueId(), updated);
-                requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
             }
             return;
         }
@@ -835,32 +823,53 @@ public final class MarketGuiService {
         }
 
         refreshTrade(player, categoryId, itemId);
-        executeTradeAsync(
+        quoteAndExecuteTradeAsync(
             player.getUniqueId(),
             item.icon(),
             executingSession,
-            MarketQuoteSide.SELL
+            MarketQuoteSide.SELL,
+            snapshot.snapshotVersion()
         );
     }
 
-    private void executeTradeAsync(
+    private void quoteAndExecuteTradeAsync(
         UUID playerId,
         Material material,
         MarketSession executingSession,
-        MarketQuoteSide side
+        MarketQuoteSide side,
+        String snapshotVersion
     ) {
         plugin
             .getServer()
             .getScheduler()
             .runTaskAsynchronously(plugin, () -> {
                 try {
+                    logInfo(
+                        "market.trade.quote.request: player=" +
+                            playerId +
+                            ", item=" +
+                            executingSession.selectedItemId() +
+                            ", side=" +
+                            side.name().toLowerCase() +
+                            ", quantity=" +
+                            executingSession.quantity() +
+                            ", snapshotVersion=" +
+                            snapshotVersion
+                    );
+                    MarketQuoteResult quoteResult = quoteClient.requestQuote(
+                        playerId,
+                        executingSession.selectedItemId(),
+                        side,
+                        executingSession.quantity(),
+                        snapshotVersion
+                    );
                     MarketExecuteResult result = executeClient.executeTrade(
                         playerId,
                         executingSession.selectedItemId(),
                         side,
                         executingSession.quantity(),
-                        quoteToken(executingSession, side),
-                        quoteSnapshotVersion(executingSession, side)
+                        quoteResult.quoteToken(),
+                        quoteResult.snapshotVersion()
                     );
                     plugin
                         .getServer()
@@ -886,11 +895,24 @@ public final class MarketGuiService {
                             )
                         );
                 } catch (RuntimeException error) {
+                    String rejectionCode = quoteRejectionCode(error);
                     plugin
                         .getServer()
                         .getScheduler()
-                        .runTask(plugin, () ->
-                            applyTradeFailure(playerId, executingSession)
+                        .runTask(
+                            plugin,
+                            () -> {
+                                if (rejectionCode != null) {
+                                    applyQuoteExecutionRejection(
+                                        playerId,
+                                        executingSession,
+                                        rejectionCode
+                                    );
+                                    return;
+                                }
+
+                                applyTradeFailure(playerId, executingSession);
+                            }
                         );
                 }
             });
@@ -1145,6 +1167,34 @@ public final class MarketGuiService {
         Player player = plugin.getServer().getPlayer(playerId);
         if (player != null && player.isOnline()) {
             renderer.sendMessage(player, rejectionMessage(code));
+        }
+
+        if (updated != null) {
+            rerenderTradeIfVisible(playerId, updated);
+        }
+    }
+
+    private void applyQuoteExecutionRejection(
+        UUID playerId,
+        MarketSession expectedSession,
+        String rejectionCode
+    ) {
+        MarketSession updated = sessionRegistry
+            .update(playerId, current -> {
+                if (!sameTradeSession(current, expectedSession)) {
+                    return current;
+                }
+
+                return current.withQuoteMessage(
+                    MarketQuoteStatus.AVAILABLE,
+                    rejectionMessage(rejectionCode)
+                );
+            })
+            .orElse(null);
+
+        Player player = plugin.getServer().getPlayer(playerId);
+        if (player != null && player.isOnline()) {
+            renderer.sendMessage(player, rejectionMessage(rejectionCode));
         }
 
         if (updated != null) {
@@ -1826,18 +1876,6 @@ public final class MarketGuiService {
 
         if (updated != null) {
             rerenderTradeIfVisible(playerId, updated);
-            if (
-                !updated.readOnly() &&
-                updated.screen() == MarketScreen.TRADE_VIEW &&
-                updated.quoteStatus() == MarketQuoteStatus.AVAILABLE &&
-                !hasResolvedQuoteState(updated)
-            ) {
-                requestQuoteRefresh(
-                    playerId,
-                    updated.selectedCategoryId(),
-                    updated.selectedItemId()
-                );
-            }
         }
     }
 
