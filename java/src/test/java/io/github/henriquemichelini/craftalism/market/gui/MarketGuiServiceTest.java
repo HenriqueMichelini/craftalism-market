@@ -1559,6 +1559,32 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void partialQuoteRejectionCountsAsResolvedQuoteState() throws Exception {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "hasResolvedQuoteState",
+            MarketSession.class
+        );
+        method.setAccessible(true);
+
+        MarketSession initialSession = MarketSession.tradeView(
+            "farming",
+            "wheat",
+            false
+        );
+        MarketSession partialSession = initialSession.withQuoteResults(
+            quote(MarketQuoteSide.BUY, 1, "snapshot-v1"),
+            "Quote ready",
+            null,
+            "&cThere is not enough stock for that purchase.",
+            "Partial quotes ready"
+        );
+
+        assertFalse((Boolean) method.invoke(guiService, initialSession));
+        assertTrue((Boolean) method.invoke(guiService, partialSession));
+    }
+
+    @Test
     void onlineBuySuccessDeliversItemsAndReturnsSessionToReadyTrading()
         throws Exception {
         MarketSessionRegistry registry = new MarketSessionRegistry();

@@ -412,7 +412,7 @@ public final class MarketGuiService {
         if (
             !session.readOnly() &&
             session.quoteStatus() == MarketQuoteStatus.AVAILABLE &&
-            !hasQuotePair(session)
+            !hasResolvedQuoteState(session)
         ) {
             requestQuoteRefresh(player.getUniqueId(), categoryId, itemId);
         }
@@ -1761,6 +1761,17 @@ public final class MarketGuiService {
             hasExecutableQuote(session, MarketQuoteSide.SELL);
     }
 
+    private boolean hasResolvedQuoteState(MarketSession session) {
+        return hasExecutableQuote(session, MarketQuoteSide.BUY) ||
+            hasExecutableQuote(session, MarketQuoteSide.SELL) ||
+            hasQuoteSideMessage(session.buyQuoteMessage()) ||
+            hasQuoteSideMessage(session.sellQuoteMessage());
+    }
+
+    private boolean hasQuoteSideMessage(String message) {
+        return message != null && !message.isBlank();
+    }
+
     private boolean hasExecutableQuote(
         MarketSession session,
         MarketQuoteSide side
@@ -1819,7 +1830,7 @@ public final class MarketGuiService {
                 !updated.readOnly() &&
                 updated.screen() == MarketScreen.TRADE_VIEW &&
                 updated.quoteStatus() == MarketQuoteStatus.AVAILABLE &&
-                !hasQuotePair(updated)
+                !hasResolvedQuoteState(updated)
             ) {
                 requestQuoteRefresh(
                     playerId,
