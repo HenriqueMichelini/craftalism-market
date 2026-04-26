@@ -182,6 +182,10 @@ final class MarketGuiRenderer {
         );
     }
 
+    String rejectionMessage(String code, String fallback) {
+        return config.getString("messages.rejections." + code, fallback);
+    }
+
     String colorize(String text) {
         return SECTION_SERIALIZER.serialize(
             AMPERSAND_SERIALIZER.deserialize(text)

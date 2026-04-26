@@ -21,6 +21,7 @@ messages:
     ITEM_BLOCKED: "&cThis item is currently blocked."
     ITEM_NOT_OPERATING: "&cThis item is not operating right now."
     INSUFFICIENT_STOCK: "&cThere is not enough stock for that purchase."
+    INSUFFICIENT_STOCK_SELL: "&cThe market cannot accept that many items right now."
     INSUFFICIENT_FUNDS: "&cYou do not have enough funds for that purchase."
     MARKET_CLOSED: "&cThe market is currently closed."
     INVALID_QUANTITY: "&cThat quantity is invalid."

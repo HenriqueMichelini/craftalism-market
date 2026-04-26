@@ -1658,10 +1658,17 @@ class MarketGuiServiceTest {
             "applyQuoteExecutionRejection",
             UUID.class,
             MarketSession.class,
+            MarketQuoteSide.class,
             String.class
         );
         method.setAccessible(true);
-        method.invoke(guiService, playerId, executingSession, "STALE_QUOTE");
+        method.invoke(
+            guiService,
+            playerId,
+            executingSession,
+            MarketQuoteSide.SELL,
+            "STALE_QUOTE"
+        );
 
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(10, updated.quantity());
@@ -1678,11 +1685,84 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void sellQuoteExecutionStockRejectionUsesSellMessage() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set(
+            "messages.rejections.INSUFFICIENT_STOCK",
+            "&cThere is not enough stock for that purchase."
+        );
+        config.set(
+            "messages.rejections.INSUFFICIENT_STOCK_SELL",
+            "&cThe market cannot accept that many items right now."
+        );
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(fakeOnlinePlayer(playerId)),
+            new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                throw new AssertionError();
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                throw new AssertionError();
+            },
+            new FakeInventoryAccess(),
+            registry,
+            config
+        );
+        MarketSession executingSession = MarketSession.tradeView(
+            "farming",
+            "wheat",
+            false
+        )
+            .withQuantity(10)
+            .withExecutionPending(MarketQuoteSide.SELL);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "applyQuoteExecutionRejection",
+            UUID.class,
+            MarketSession.class,
+            MarketQuoteSide.class,
+            String.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+            guiService,
+            playerId,
+            executingSession,
+            MarketQuoteSide.SELL,
+            "INSUFFICIENT_STOCK"
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals(
+            "&cThe market cannot accept that many items right now.",
+            updated.quoteStatusMessage()
+        );
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
+    @Test
     void buyQuoteRejectionStillAllowsSellExecution() throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
             "messages.rejections.INSUFFICIENT_STOCK",
             "&cThere is not enough stock for that purchase."
+        );
+        config.set(
+            "messages.rejections.INSUFFICIENT_STOCK_SELL",
+            "&cThe market cannot accept that many items right now."
         );
 
         MarketSessionRegistry registry = new MarketSessionRegistry();
@@ -2103,6 +2183,10 @@ class MarketGuiServiceTest {
             "messages.rejections.INSUFFICIENT_STOCK",
             "&cThere is not enough stock for that purchase."
         );
+        config.set(
+            "messages.rejections.INSUFFICIENT_STOCK_SELL",
+            "&cThe market cannot accept that many items right now."
+        );
 
         MarketSessionRegistry registry = new MarketSessionRegistry();
         UUID playerId = UUID.randomUUID();
@@ -2179,7 +2263,7 @@ class MarketGuiServiceTest {
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
         assertEquals(
-            "&cThere is not enough stock for that purchase.",
+            "&cThe market cannot accept that many items right now.",
             updated.quoteStatusMessage()
         );
         assertFalse(updated.executingBuy());
