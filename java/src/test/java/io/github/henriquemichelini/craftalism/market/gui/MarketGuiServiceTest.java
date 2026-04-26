@@ -1515,6 +1515,169 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void buyExecutionRetriesStaleQuoteWithFreshSnapshot() throws Exception {
+        AtomicInteger snapshotCalls = new AtomicInteger();
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(
+                () ->
+                    snapshotCalls.getAndIncrement() == 0
+                        ? sampleSnapshot(false)
+                        : updatedSnapshot(false),
+                directExecutor()
+            );
+        snapshotService.loadForInitialOpen().get();
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        FakeInventoryAccess inventoryAccess = new FakeInventoryAccess();
+        Player player = fakeOnlinePlayer(playerId);
+        List<String> quoteSnapshotVersions = new ArrayList<>();
+        List<String> executeSnapshotVersions = new ArrayList<>();
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(player),
+            snapshotService,
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                quoteSnapshotVersions.add(snapshotVersion);
+                if ("snapshot-v1".equals(snapshotVersion)) {
+                    throw new MarketApiRequestException(
+                        409,
+                        "{\"status\":\"REJECTED\",\"code\":\"STALE_QUOTE\",\"message\":\"Snapshot is no longer current.\",\"snapshotVersion\":\"snapshot-v2\"}"
+                    );
+                }
+                return quote(side, quantity, snapshotVersion);
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                executeSnapshotVersions.add(snapshotVersion);
+                return new MarketExecuteResult(
+                    quantity,
+                    "10",
+                    "5",
+                    "coins",
+                    "snapshot-v3"
+                );
+            },
+            inventoryAccess,
+            registry,
+            new YamlConfiguration()
+        );
+        MarketSession executingSession = MarketSession
+            .tradeView("farming", "wheat", false)
+            .withQuantity(2)
+            .withExecutionPending(MarketQuoteSide.BUY);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "quoteAndExecuteTradeAsync",
+            UUID.class,
+            Material.class,
+            MarketSession.class,
+            MarketQuoteSide.class,
+            String.class
+        );
+        method.setAccessible(true);
+        method.invoke(
+            guiService,
+            playerId,
+            Material.WHEAT,
+            executingSession,
+            MarketQuoteSide.BUY,
+            "snapshot-v1"
+        );
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(List.of("snapshot-v1", "snapshot-v2"), quoteSnapshotVersions);
+        assertEquals(List.of("snapshot-v2"), executeSnapshotVersions);
+        assertEquals(2, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void staleQuoteBeforeExecutionRefreshesTradeSnapshot() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set(
+            "messages.rejections.STALE_QUOTE",
+            "&eThat quote is stale. Refreshing now."
+        );
+
+        AtomicInteger snapshotCalls = new AtomicInteger();
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(
+                () ->
+                    snapshotCalls.getAndIncrement() == 0
+                        ? sampleSnapshot(false)
+                        : updatedSnapshot(false),
+                directExecutor()
+            );
+        snapshotService.loadForInitialOpen().get();
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        Player offlinePlayer = fakeOfflinePlayer(playerId);
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(offlinePlayer),
+            snapshotService,
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                throw new AssertionError();
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                throw new AssertionError();
+            },
+            new FakeInventoryAccess(),
+            registry,
+            config
+        );
+        MarketSession executingSession = MarketSession.tradeView(
+            "farming",
+            "wheat",
+            false
+        )
+            .withQuantity(10)
+            .withExecutionPending(MarketQuoteSide.SELL);
+        registry.put(playerId, executingSession);
+
+        Method method = MarketGuiService.class.getDeclaredMethod(
+            "applyQuoteExecutionRejection",
+            UUID.class,
+            MarketSession.class,
+            String.class
+        );
+        method.setAccessible(true);
+        method.invoke(guiService, playerId, executingSession, "STALE_QUOTE");
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertEquals(10, updated.quantity());
+        assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertFalse(updated.executingBuy());
+        assertFalse(updated.executingSell());
+        assertEquals(
+            "snapshot-v2",
+            snapshotService.currentSnapshot().orElseThrow().snapshotVersion()
+        );
+    }
+
+    @Test
     void buyQuoteRejectionStillAllowsSellExecution() throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
