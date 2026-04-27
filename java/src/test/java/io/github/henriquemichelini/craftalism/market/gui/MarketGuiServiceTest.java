@@ -2089,7 +2089,7 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void onlineBuyFailureRestoresAvailableStateWithExecuteUnavailableMessage()
+    void onlineBuyFailureRefreshesBackToAvailableStateAfterLiveSnapshot()
         throws Exception {
         YamlConfiguration config = new YamlConfiguration();
         config.set(
@@ -2099,7 +2099,8 @@ class MarketGuiServiceTest {
 
         MarketSessionRegistry registry = new MarketSessionRegistry();
         UUID playerId = UUID.randomUUID();
-        Player onlinePlayer = fakeOnlinePlayer(playerId);
+        List<String> messages = new ArrayList<>();
+        Player onlinePlayer = fakeOnlinePlayer(playerId, messages);
         MarketGuiService guiService = new MarketGuiService(
             fakePlugin(onlinePlayer),
             new MarketBrowseSnapshotService(sampleProvider(), directExecutor()),
@@ -2167,12 +2168,136 @@ class MarketGuiServiceTest {
 
         MarketSession updated = registry.get(playerId).orElseThrow();
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
-        assertEquals(
-            "&cTrade execution is currently unavailable.",
-            updated.quoteStatusMessage()
+        assertEquals("Ready to trade", updated.quoteStatusMessage());
+        assertTrue(
+            messages.contains(
+                "§cTrade execution is currently unavailable."
+            )
         );
         assertFalse(updated.executingBuy());
         assertFalse(updated.executingSell());
+    }
+
+    @Test
+    void buyFailureFallbackDisablesTradeAndSuppressesRepeatedClick()
+        throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set(
+            "messages.execute-unavailable",
+            "&cTrade execution is currently unavailable."
+        );
+
+        AtomicInteger snapshotCalls = new AtomicInteger();
+        MarketBrowseSnapshotService snapshotService =
+            new MarketBrowseSnapshotService(
+                () -> {
+                    if (snapshotCalls.getAndIncrement() == 0) {
+                        return sampleSnapshot(false);
+                    }
+                    throw new IllegalStateException("api unavailable");
+                },
+                directExecutor()
+            );
+        snapshotService.loadForInitialOpen().get();
+
+        MarketSessionRegistry registry = new MarketSessionRegistry();
+        UUID playerId = UUID.randomUUID();
+        AtomicInteger quoteCalls = new AtomicInteger();
+        AtomicInteger executeCalls = new AtomicInteger();
+        List<String> messages = new ArrayList<>();
+        Player onlinePlayer = fakeOnlinePlayer(playerId, messages);
+        MarketGuiService guiService = new MarketGuiService(
+            fakePlugin(onlinePlayer),
+            snapshotService,
+            (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
+                quoteCalls.incrementAndGet();
+                throw new IllegalStateException("api unavailable");
+            },
+            (
+                ignoredPlayerId,
+                itemId,
+                side,
+                quantity,
+                quoteToken,
+                snapshotVersion
+            ) -> {
+                executeCalls.incrementAndGet();
+                throw new AssertionError();
+            },
+            new FakeInventoryAccess(),
+            registry,
+            config
+        );
+        MarketSession executingSession = MarketSession.tradeView(
+            "farming",
+            "wheat",
+            false
+        )
+            .withQuotePair(
+                new MarketQuotePair(
+                    new MarketQuoteResult(
+                        MarketQuoteSide.BUY,
+                        1,
+                        "5",
+                        "5",
+                        "coins",
+                        "buy-token",
+                        "snapshot-v1"
+                    ),
+                    new MarketQuoteResult(
+                        MarketQuoteSide.SELL,
+                        1,
+                        "4",
+                        "4",
+                        "coins",
+                        "sell-token",
+                        "snapshot-v1"
+                    )
+                )
+            )
+            .withExecutionPending(MarketQuoteSide.BUY);
+        registry.put(playerId, executingSession);
+
+        Method executeMethod = MarketGuiService.class.getDeclaredMethod(
+            "quoteAndExecuteTradeAsync",
+            UUID.class,
+            Material.class,
+            MarketSession.class,
+            MarketQuoteSide.class,
+            String.class
+        );
+        executeMethod.setAccessible(true);
+        executeMethod.invoke(
+            guiService,
+            playerId,
+            Material.WHEAT,
+            executingSession,
+            MarketQuoteSide.BUY,
+            "snapshot-v1"
+        );
+
+        Method clickMethod = MarketGuiService.class.getDeclaredMethod(
+            "handleBuyClick",
+            Player.class,
+            String.class,
+            String.class
+        );
+        clickMethod.setAccessible(true);
+        clickMethod.invoke(guiService, onlinePlayer, "farming", "wheat");
+
+        MarketSession updated = registry.get(playerId).orElseThrow();
+        assertTrue(updated.readOnly());
+        assertEquals(MarketQuoteStatus.DISABLED, updated.quoteStatus());
+        assertEquals("Cached preview only", updated.quoteStatusMessage());
+        assertEquals(null, updated.buyQuoteToken());
+        assertEquals(null, updated.sellQuoteToken());
+        assertEquals(1, quoteCalls.get());
+        assertEquals(0, executeCalls.get());
+        assertTrue(
+            messages.contains(
+                "§cTrade execution is currently unavailable."
+            )
+        );
     }
 
     @Test

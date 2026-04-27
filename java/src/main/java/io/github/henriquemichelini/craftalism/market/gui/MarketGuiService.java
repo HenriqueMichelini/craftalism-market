@@ -1276,6 +1276,16 @@ public final class MarketGuiService {
             return;
         }
 
+        if ("API_UNAVAILABLE".equals(code)) {
+            applyTradeUnavailable(
+                playerId,
+                expectedSession,
+                rejectionMessage(side, code),
+                true
+            );
+            return;
+        }
+
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
                 if (!sameTradeSession(current, expectedSession)) {
@@ -1331,6 +1341,16 @@ public final class MarketGuiService {
                 rerenderTradeIfVisible(playerId, updated);
                 refreshTradeSnapshot(playerId, updated);
             }
+            return;
+        }
+
+        if ("API_UNAVAILABLE".equals(rejectionCode)) {
+            applyTradeUnavailable(
+                playerId,
+                expectedSession,
+                rejectionMessage(side, rejectionCode),
+                true
+            );
             return;
         }
 
@@ -1390,32 +1410,54 @@ public final class MarketGuiService {
         UUID playerId,
         MarketSession expectedSession
     ) {
+        applyTradeUnavailable(
+            playerId,
+            expectedSession,
+            renderer.message("messages.execute-unavailable"),
+            true
+        );
+    }
+
+    private void applyTradeUnavailable(
+        UUID playerId,
+        MarketSession expectedSession,
+        String message,
+        boolean refreshSnapshot
+    ) {
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
                 if (!sameTradeSession(current, expectedSession)) {
                     return current;
                 }
 
-                return current.withQuoteMessage(
-                    MarketQuoteStatus.AVAILABLE,
-                    renderer.message("messages.execute-unavailable")
-                );
+                return current.withQuoteUnavailable(message);
             })
             .orElse(null);
 
         Player player = plugin.getServer().getPlayer(playerId);
         if (player != null && player.isOnline()) {
-            renderer.sendMessage(player, renderer.message("messages.execute-unavailable"));
+            renderer.sendMessage(player, message);
         }
 
         if (updated != null) {
             rerenderTradeIfVisible(playerId, updated);
+            if (refreshSnapshot) {
+                refreshTradeSnapshot(playerId, updated, true);
+            }
         }
     }
 
     private void refreshTradeSnapshot(
         UUID playerId,
         MarketSession expectedSession
+    ) {
+        refreshTradeSnapshot(playerId, expectedSession, false);
+    }
+
+    private void refreshTradeSnapshot(
+        UUID playerId,
+        MarketSession expectedSession,
+        boolean restoreLiveTrading
     ) {
         snapshotService
             .refreshSnapshot()
@@ -1428,7 +1470,8 @@ public final class MarketGuiService {
                             playerId,
                             expectedSession,
                             result,
-                            error
+                            error,
+                            restoreLiveTrading
                         )
                     )
             );
@@ -2025,7 +2068,8 @@ public final class MarketGuiService {
         UUID playerId,
         MarketSession expectedSession,
         MarketBrowseSnapshotLoadResult result,
-        Throwable error
+        Throwable error,
+        boolean restoreLiveTrading
     ) {
         MarketSession updated = sessionRegistry
             .update(playerId, current -> {
@@ -2039,7 +2083,11 @@ public final class MarketGuiService {
                     );
                 }
 
-                return sessionForSnapshot(current, result.snapshot());
+                return sessionForSnapshot(
+                    current,
+                    result.snapshot(),
+                    restoreLiveTrading
+                );
             })
             .orElse(null);
 
@@ -2068,6 +2116,14 @@ public final class MarketGuiService {
         MarketSession session,
         MarketBrowseSnapshot snapshot
     ) {
+        return sessionForSnapshot(session, snapshot, false);
+    }
+
+    private MarketSession sessionForSnapshot(
+        MarketSession session,
+        MarketBrowseSnapshot snapshot,
+        boolean restoreLiveTrading
+    ) {
         if (session.screen() != MarketScreen.TRADE_VIEW) {
             return session;
         }
@@ -2095,6 +2151,10 @@ public final class MarketGuiService {
             return session.withQuoteUnavailable(
                 rejectionMessage("ITEM_NOT_OPERATING")
             );
+        }
+
+        if (restoreLiveTrading) {
+            return session.asLiveTradingAvailable();
         }
 
         if (
