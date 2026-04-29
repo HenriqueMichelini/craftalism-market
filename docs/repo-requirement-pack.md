@@ -15,15 +15,11 @@
   - plugin-local documentation coherence
 
 ## Consumed Contracts
-- `market-snapshots`
+- `market-contract`
   - Consume canonical market category and item snapshot semantics correctly
-- `market-quotes`
   - Consume canonical quote semantics, including quantity-sensitive pricing, without recomputing backend logic locally
-- `market-execution`
   - Consume canonical buy/sell execution behavior and authoritative results correctly
-- `market-rejection-codes`
   - Map stable API rejection codes into player-friendly plugin messages
-- `market-versioning`
   - Use `snapshotVersion` and/or `quoteToken` correctly for stale detection and refresh safety
 - `error-semantics`
   - Reflect API and transport failures appropriately in plugin UX

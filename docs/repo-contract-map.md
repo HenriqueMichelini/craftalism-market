@@ -15,15 +15,11 @@
   - async response application to current GUI state
 
 ## Consumed Contracts
-- `market-snapshots`
+- `market-contract`
   - Must consume canonical category and item snapshot data correctly
-- `market-quotes`
   - Must consume quantity-aware quotes without re-implementing pricing math locally
-- `market-execution`
   - Must submit buy/sell intent and consume authoritative execution results correctly
-- `market-rejection-codes`
   - Must map stable API rejection codes to player-friendly messages
-- `market-versioning`
   - Must use `snapshotVersion` and `quoteToken` correctly for stale detection and revalidation
 - `error-semantics`
   - Must map API, timeout, and unavailable-state failures appropriately
