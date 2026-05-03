@@ -22,6 +22,8 @@ import java.util.logging.Logger;
 import org.bukkit.Material;
 
 final class DeferredSettlementStore {
+    private static final String MONEY_SCALE_DISPLAY = "display";
+
     private final Path path;
     private final Logger logger;
 
@@ -43,13 +45,15 @@ final class DeferredSettlementStore {
                 root.get("settlements").isJsonArray()
                 ? root.getAsJsonArray("settlements")
                 : new JsonArray();
+            boolean displayScaledMoney =
+                MONEY_SCALE_DISPLAY.equals(optionalString(root, "moneyScale", ""));
             Map<UUID, List<MarketGuiService.DeferredSettlement>> loaded =
                 new HashMap<>();
             for (JsonElement element : settlements) {
                 JsonObject settlement = element.getAsJsonObject();
                 UUID playerId = UUID.fromString(requiredString(settlement, "playerId"));
                 loaded.computeIfAbsent(playerId, ignored -> new ArrayList<>())
-                    .add(parseSettlement(settlement));
+                    .add(parseSettlement(settlement, displayScaledMoney));
             }
             return copy(loaded);
         } catch (RuntimeException | IOException error) {
@@ -71,6 +75,7 @@ final class DeferredSettlementStore {
             }
 
             JsonObject root = new JsonObject();
+            root.addProperty("moneyScale", MONEY_SCALE_DISPLAY);
             JsonArray array = new JsonArray();
             settlements.forEach((playerId, playerSettlements) ->
                 playerSettlements.forEach(settlement ->
@@ -116,7 +121,8 @@ final class DeferredSettlementStore {
     }
 
     private MarketGuiService.DeferredSettlement parseSettlement(
-        JsonObject settlement
+        JsonObject settlement,
+        boolean displayScaledMoney
     ) {
         JsonObject result = settlement.getAsJsonObject("result");
         return new MarketGuiService.DeferredSettlement(
@@ -124,8 +130,8 @@ final class DeferredSettlementStore {
             Material.valueOf(requiredString(settlement, "material")),
             new MarketExecuteResult(
                 requiredInt(result, "executedQuantity"),
-                normalizeMoney(requiredString(result, "totalPrice")),
-                normalizeMoney(requiredString(result, "unitPrice")),
+                moneyValue(requiredString(result, "totalPrice"), displayScaledMoney),
+                moneyValue(requiredString(result, "unitPrice"), displayScaledMoney),
                 requiredString(result, "currency"),
                 requiredString(result, "snapshotVersion")
             )
@@ -172,6 +178,13 @@ final class DeferredSettlementStore {
         return source.get(field).getAsString();
     }
 
+    private String optionalString(JsonObject source, String field, String fallback) {
+        if (!source.has(field) || source.get(field).isJsonNull()) {
+            return fallback;
+        }
+        return source.get(field).getAsString();
+    }
+
     private int requiredInt(JsonObject source, String field) {
         if (!source.has(field) || source.get(field).isJsonNull()) {
             throw new IllegalStateException(
@@ -181,7 +194,7 @@ final class DeferredSettlementStore {
         return source.get(field).getAsInt();
     }
 
-    private String normalizeMoney(String value) {
-        return MoneyValueFormatter.normalize(value);
+    private String moneyValue(String value, boolean displayScaledMoney) {
+        return displayScaledMoney ? value : MoneyValueFormatter.normalize(value);
     }
 }

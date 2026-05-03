@@ -29,8 +29,8 @@ class HttpMarketQuoteClientTest {
                         return """
                                 {
                                   "quantity": 4,
-                                  "totalPrice": "19.80",
-                                  "unitPrice": "4.95",
+                                  "totalPrice": "198000",
+                                  "unitPrice": "49500",
                                   "currency": "coins",
                                   "quoteToken": "quote_123",
                                   "snapshotVersion": "snapshot-v2"
@@ -63,7 +63,7 @@ class HttpMarketQuoteClientTest {
     }
 
     @Test
-    void preservesIntegerQuotePriceDisplayUnits() {
+    void convertsIntegerQuotePricesFromEconomyRawUnits() {
         HttpMarketQuoteClient client = new HttpMarketQuoteClient(
                 new MarketApiTransport() {
                     @Override
@@ -103,6 +103,7 @@ class HttpMarketQuoteClientTest {
                 "snapshot-v1"
         );
 
-        assertEquals("198000", result.totalPrice());
+        assertEquals("19.8", result.totalPrice());
+        assertEquals("4.95", result.unitPrice());
     }
 }

@@ -6,16 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class MoneyValueFormatterTest {
     @Test
-    void preservesMarketPriceDisplayUnits() {
-        assertEquals("6", MoneyValueFormatter.normalize("6"));
-        assertEquals("1000000", MoneyValueFormatter.normalize("1000000"));
+    void convertsEconomyRawUnitsToDisplayUnits() {
+        assertEquals("0.0014", MoneyValueFormatter.normalize("14"));
+        assertEquals("1", MoneyValueFormatter.normalize("10000"));
+        assertEquals("100", MoneyValueFormatter.normalize("1000000"));
+        assertEquals("10000", MoneyValueFormatter.normalize("100000000"));
     }
 
     @Test
-    void normalizesDisplayDecimalsWithoutApplyingBalanceScaling() {
-        assertEquals("19.8", MoneyValueFormatter.normalize("19.8"));
-        assertEquals("19.8", MoneyValueFormatter.normalize("19.8000"));
-        assertEquals("1.2346", MoneyValueFormatter.normalize("1.23456"));
-        assertEquals("0.0001", MoneyValueFormatter.normalize("0.00006"));
+    void normalizesScaledDisplayDecimals() {
+        assertEquals("19.8", MoneyValueFormatter.normalize("198000"));
+        assertEquals("19.8", MoneyValueFormatter.normalize("198000.0000"));
+        assertEquals("1.2346", MoneyValueFormatter.normalize("12345.6"));
+        assertEquals("0.0001", MoneyValueFormatter.normalize("1"));
     }
 }

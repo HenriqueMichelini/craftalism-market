@@ -31,8 +31,8 @@ class HttpMarketExecuteClientTest {
                                 {
                                   "status": "SUCCESS",
                                   "executedQuantity": 4,
-                                  "unitPrice": "4.95",
-                                  "totalPrice": "19.80",
+                                  "unitPrice": "49500",
+                                  "totalPrice": "198000",
                                   "currency": "coins",
                                   "snapshotVersion": "snapshot-v3"
                                 }
@@ -69,7 +69,7 @@ class HttpMarketExecuteClientTest {
     }
 
     @Test
-    void preservesIntegerExecutePriceDisplayUnits() {
+    void convertsIntegerExecutePricesFromEconomyRawUnits() {
         HttpMarketExecuteClient client = new HttpMarketExecuteClient(
                 new MarketApiTransport() {
                     @Override
@@ -110,8 +110,8 @@ class HttpMarketExecuteClientTest {
                 "snapshot-v2"
         );
 
-        assertEquals("198000", result.totalPrice());
-        assertEquals("49500", result.unitPrice());
+        assertEquals("19.8", result.totalPrice());
+        assertEquals("4.95", result.unitPrice());
     }
 
     @Test

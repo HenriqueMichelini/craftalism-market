@@ -6,6 +6,7 @@ import java.math.RoundingMode;
 
 public final class MoneyValueFormatter {
     private static final int MAX_DISPLAY_SCALE = 4;
+    private static final BigDecimal ECONOMY_DECIMAL_SCALE = BigDecimal.valueOf(10_000L);
 
     private MoneyValueFormatter() {}
 
@@ -36,6 +37,7 @@ public final class MoneyValueFormatter {
 
     private static String formatDisplayValue(BigDecimal value) {
         return value
+            .divide(ECONOMY_DECIMAL_SCALE, MAX_DISPLAY_SCALE, RoundingMode.HALF_UP)
             .setScale(MAX_DISPLAY_SCALE, RoundingMode.HALF_UP)
             .stripTrailingZeros()
             .toPlainString();

@@ -59,7 +59,7 @@ class DeferredSettlementStoreTest {
     }
 
     @Test
-    void loadPreservesIntegerSettlementAmountDisplayUnits() throws Exception {
+    void loadConvertsIntegerSettlementAmountFromEconomyRawUnits() throws Exception {
         Path path = tempDir.resolve("deferred-settlements.json");
         Files.writeString(
             path,
@@ -89,7 +89,7 @@ class DeferredSettlementStoreTest {
         );
 
         assertEquals(
-            "164000",
+            "16.4",
             store
                 .load()
                 .values()

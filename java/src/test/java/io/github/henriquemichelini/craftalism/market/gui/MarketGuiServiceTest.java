@@ -1437,7 +1437,7 @@ class MarketGuiServiceTest {
     }
 
     @Test
-    void buyExecutionRequestsQuoteAndExecutesWithoutPrefetchedQuote()
+    void buyExecutionUsesStoredDisplayedQuoteToken()
         throws Exception {
         MarketSessionRegistry registry = new MarketSessionRegistry();
         UUID playerId = UUID.randomUUID();
@@ -1453,9 +1453,7 @@ class MarketGuiServiceTest {
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
                 quoteCalls.incrementAndGet();
-                assertEquals(MarketQuoteSide.BUY, side);
-                assertEquals(2, quantity);
-                return quote(side, quantity, snapshotVersion);
+                throw new AssertionError();
             },
             (
                 ignoredPlayerId,
@@ -1484,6 +1482,28 @@ class MarketGuiServiceTest {
         MarketSession executingSession = MarketSession
             .tradeView("farming", "wheat", false)
             .withQuantity(2)
+            .withQuotePair(
+                new MarketQuotePair(
+                    new MarketQuoteResult(
+                        MarketQuoteSide.BUY,
+                        2,
+                        "10",
+                        "5",
+                        "coins",
+                        "displayed-buy-token",
+                        "snapshot-v1"
+                    ),
+                    new MarketQuoteResult(
+                        MarketQuoteSide.SELL,
+                        2,
+                        "8",
+                        "4",
+                        "coins",
+                        "displayed-sell-token",
+                        "snapshot-v1"
+                    )
+                )
+            )
             .withExecutionPending(MarketQuoteSide.BUY);
         registry.put(playerId, executingSession);
 
@@ -1506,16 +1526,17 @@ class MarketGuiServiceTest {
         );
 
         MarketSession updated = registry.get(playerId).orElseThrow();
-        assertEquals(1, quoteCalls.get());
+        assertEquals(0, quoteCalls.get());
         assertEquals(1, executeCalls.get());
-        assertEquals(List.of("buy-token-2"), executeTokens);
+        assertEquals(List.of("displayed-buy-token"), executeTokens);
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
         assertEquals(null, updated.buyQuoteToken());
         assertFalse(updated.executingBuy());
     }
 
     @Test
-    void buyExecutionRetriesStaleQuoteWithFreshSnapshot() throws Exception {
+    void staleBuyExecutionClearsQuoteAndRequiresReconfirmation()
+        throws Exception {
         AtomicInteger snapshotCalls = new AtomicInteger();
         MarketBrowseSnapshotService snapshotService =
             new MarketBrowseSnapshotService(
@@ -1538,13 +1559,7 @@ class MarketGuiServiceTest {
             snapshotService,
             (ignoredPlayerId, itemId, side, quantity, snapshotVersion) -> {
                 quoteSnapshotVersions.add(snapshotVersion);
-                if ("snapshot-v1".equals(snapshotVersion)) {
-                    throw new MarketApiRequestException(
-                        409,
-                        "{\"status\":\"REJECTED\",\"code\":\"STALE_QUOTE\",\"message\":\"Snapshot is no longer current.\",\"snapshotVersion\":\"snapshot-v2\"}"
-                    );
-                }
-                return quote(side, quantity, snapshotVersion);
+                throw new AssertionError();
             },
             (
                 ignoredPlayerId,
@@ -1555,12 +1570,10 @@ class MarketGuiServiceTest {
                 snapshotVersion
             ) -> {
                 executeSnapshotVersions.add(snapshotVersion);
-                return new MarketExecuteResult(
-                    quantity,
-                    "10",
-                    "5",
-                    "coins",
-                    "snapshot-v3"
+                throw new MarketExecuteRejectedException(
+                    "STALE_QUOTE",
+                    "Snapshot is no longer current.",
+                    "snapshot-v2"
                 );
             },
             inventoryAccess,
@@ -1570,6 +1583,28 @@ class MarketGuiServiceTest {
         MarketSession executingSession = MarketSession
             .tradeView("farming", "wheat", false)
             .withQuantity(2)
+            .withQuotePair(
+                new MarketQuotePair(
+                    new MarketQuoteResult(
+                        MarketQuoteSide.BUY,
+                        2,
+                        "10",
+                        "5",
+                        "coins",
+                        "displayed-buy-token",
+                        "snapshot-v1"
+                    ),
+                    new MarketQuoteResult(
+                        MarketQuoteSide.SELL,
+                        2,
+                        "8",
+                        "4",
+                        "coins",
+                        "displayed-sell-token",
+                        "snapshot-v1"
+                    )
+                )
+            )
             .withExecutionPending(MarketQuoteSide.BUY);
         registry.put(playerId, executingSession);
 
@@ -1592,9 +1627,9 @@ class MarketGuiServiceTest {
         );
 
         MarketSession updated = registry.get(playerId).orElseThrow();
-        assertEquals(List.of("snapshot-v1", "snapshot-v2"), quoteSnapshotVersions);
-        assertEquals(List.of("snapshot-v2"), executeSnapshotVersions);
-        assertEquals(2, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(List.of(), quoteSnapshotVersions);
+        assertEquals(List.of("snapshot-v1"), executeSnapshotVersions);
+        assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
         assertEquals(MarketQuoteStatus.AVAILABLE, updated.quoteStatus());
         assertEquals("Ready to trade", updated.quoteStatusMessage());
         assertEquals(null, updated.buyQuoteToken());
@@ -1903,6 +1938,50 @@ class MarketGuiServiceTest {
 
         assertFalse((Boolean) method.invoke(guiService, initialSession));
         assertTrue((Boolean) method.invoke(guiService, partialSession));
+    }
+
+    @Test
+    void quoteActionButtonRequiresExecutableSideForNowState() {
+        MarketGuiRenderer renderer = new MarketGuiRenderer(
+            new YamlConfiguration()
+        );
+
+        assertEquals(
+            Material.BARRIER,
+            renderer.quoteActionButtonMaterial(
+                "Buy",
+                MarketQuoteStatus.AVAILABLE,
+                false,
+                false
+            )
+        );
+        assertEquals(
+            "&cBuy Unavailable",
+            renderer.quoteActionButtonName(
+                "Buy",
+                MarketQuoteStatus.AVAILABLE,
+                false,
+                false
+            )
+        );
+        assertEquals(
+            Material.HONEY_BLOCK,
+            renderer.quoteActionButtonMaterial(
+                "Sell",
+                MarketQuoteStatus.AVAILABLE,
+                false,
+                true
+            )
+        );
+        assertEquals(
+            "&aSell Now",
+            renderer.quoteActionButtonName(
+                "Sell",
+                MarketQuoteStatus.AVAILABLE,
+                false,
+                true
+            )
+        );
     }
 
     @Test
@@ -2222,7 +2301,7 @@ class MarketGuiServiceTest {
                 snapshotVersion
             ) -> {
                 executeCalls.incrementAndGet();
-                throw new AssertionError();
+                throw new IllegalStateException("api unavailable");
             },
             new FakeInventoryAccess(),
             registry,
@@ -2291,8 +2370,8 @@ class MarketGuiServiceTest {
         assertEquals("Cached preview only", updated.quoteStatusMessage());
         assertEquals(null, updated.buyQuoteToken());
         assertEquals(null, updated.sellQuoteToken());
-        assertEquals(1, quoteCalls.get());
-        assertEquals(0, executeCalls.get());
+        assertEquals(0, quoteCalls.get());
+        assertEquals(1, executeCalls.get());
         assertTrue(
             messages.contains(
                 "§cTrade execution is currently unavailable."

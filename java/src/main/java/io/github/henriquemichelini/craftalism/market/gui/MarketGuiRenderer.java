@@ -113,7 +113,13 @@ final class MarketGuiRenderer {
         boolean executable
     ) {
         List<String> lore = new ArrayList<>();
-        lore.add(colorize("&7Click to request a quote and execute."));
+        lore.add(
+            colorize(
+                executable
+                    ? "&7Click to execute this quote."
+                    : "&7Wait for an available quote."
+            )
+        );
         if (quotedTotal != null) {
             lore.add(colorize("&7Latest quoted total: &f" + quotedTotal));
         }
@@ -124,24 +130,54 @@ final class MarketGuiRenderer {
             ? quoteStatusLabel(MarketQuoteStatus.DISABLED, null)
             : quoteStatus == MarketQuoteStatus.PENDING
                 ? quoteStatusLabel(MarketQuoteStatus.PENDING, null)
-                : quoteStatus == MarketQuoteStatus.AVAILABLE
+                : quoteStatus == MarketQuoteStatus.AVAILABLE && executable
                     ? quoteStatusLabel(MarketQuoteStatus.AVAILABLE, null)
                     : quoteStatusLabel(MarketQuoteStatus.UNAVAILABLE, null);
         lore.add(colorize("&7State: &f" + stateLabel));
 
-        Material material = Material.BARRIER;
-        String name = "&c" + action + " Unavailable";
+        return simpleItem(
+            quoteActionButtonMaterial(action, quoteStatus, readOnly, executable),
+            quoteActionButtonName(action, quoteStatus, readOnly, executable),
+            lore
+        );
+    }
+
+    Material quoteActionButtonMaterial(
+        String action,
+        MarketQuoteStatus quoteStatus,
+        boolean readOnly,
+        boolean executable
+    ) {
         if (!readOnly && quoteStatus == MarketQuoteStatus.PENDING) {
-            material = Material.CLOCK;
-            name = "&6" + action + " Quote Pending";
-        } else if (!readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE) {
-            material = "Buy".equals(action)
+            return Material.CLOCK;
+        }
+        if (
+            !readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE && executable
+        ) {
+            return "Buy".equals(action)
                 ? Material.SLIME_BLOCK
                 : Material.HONEY_BLOCK;
-            name = "&a" + action + " Now";
         }
 
-        return simpleItem(material, name, lore);
+        return Material.BARRIER;
+    }
+
+    String quoteActionButtonName(
+        String action,
+        MarketQuoteStatus quoteStatus,
+        boolean readOnly,
+        boolean executable
+    ) {
+        if (!readOnly && quoteStatus == MarketQuoteStatus.PENDING) {
+            return "&6" + action + " Quote Pending";
+        }
+        if (
+            !readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE && executable
+        ) {
+            return "&a" + action + " Now";
+        }
+
+        return "&c" + action + " Unavailable";
     }
 
     ItemStack quantityButton(

@@ -49,8 +49,8 @@ class HttpMarketBrowseSnapshotProviderTest {
                               "itemId": "wheat",
                               "displayName": "Wheat",
                               "iconKey": "WHEAT",
-                              "buyUnitEstimate": 4.8,
-                              "sellUnitEstimate": 4.1,
+                              "buyUnitEstimate": 48000,
+                              "sellUnitEstimate": 41000,
                               "currency": "coins",
                               "currentStock": 1820,
                               "variationPercent": 2.3,
@@ -104,7 +104,7 @@ class HttpMarketBrowseSnapshotProviderTest {
     }
 
     @Test
-    void preservesIntegerSnapshotMoneyDisplayUnits() {
+    void convertsIntegerSnapshotMoneyFromEconomyRawUnits() {
         HttpMarketBrowseSnapshotProvider provider =
             new HttpMarketBrowseSnapshotProvider(new MarketApiTransport() {
                 @Override
@@ -163,11 +163,11 @@ class HttpMarketBrowseSnapshotProviderTest {
         MarketBrowseSnapshot snapshot = provider.loadSnapshot();
 
         assertEquals(
-            "48000 coins",
+            "4.8 coins",
             snapshot.categories().getFirst().items().getFirst().buyEstimate()
         );
         assertEquals(
-            "41000 coins",
+            "4.1 coins",
             snapshot.categories().getFirst().items().getFirst().sellEstimate()
         );
     }
