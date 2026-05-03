@@ -113,13 +113,7 @@ final class MarketGuiRenderer {
         boolean executable
     ) {
         List<String> lore = new ArrayList<>();
-        lore.add(
-            colorize(
-                executable
-                    ? "&7Click to execute this quote."
-                    : "&7Wait for an available quote."
-            )
-        );
+        lore.add(colorize("&7Click to request a quote and execute."));
         if (quotedTotal != null) {
             lore.add(colorize("&7Latest quoted total: &f" + quotedTotal));
         }
@@ -130,7 +124,7 @@ final class MarketGuiRenderer {
             ? quoteStatusLabel(MarketQuoteStatus.DISABLED, null)
             : quoteStatus == MarketQuoteStatus.PENDING
                 ? quoteStatusLabel(MarketQuoteStatus.PENDING, null)
-                : quoteStatus == MarketQuoteStatus.AVAILABLE && executable
+                : quoteStatus == MarketQuoteStatus.AVAILABLE
                     ? quoteStatusLabel(MarketQuoteStatus.AVAILABLE, null)
                     : quoteStatusLabel(MarketQuoteStatus.UNAVAILABLE, null);
         lore.add(colorize("&7State: &f" + stateLabel));
@@ -152,7 +146,7 @@ final class MarketGuiRenderer {
             return Material.CLOCK;
         }
         if (
-            !readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE && executable
+            !readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE
         ) {
             return "Buy".equals(action)
                 ? Material.SLIME_BLOCK
@@ -172,7 +166,7 @@ final class MarketGuiRenderer {
             return "&6" + action + " Quote Pending";
         }
         if (
-            !readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE && executable
+            !readOnly && quoteStatus == MarketQuoteStatus.AVAILABLE
         ) {
             return "&a" + action + " Now";
         }
