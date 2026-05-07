@@ -2139,13 +2139,13 @@ public final class MarketGuiService {
             );
         }
 
-        if ("Blocked".equals(item.stockDisplay())) {
+        if (item.blocked()) {
             return session.withQuoteUnavailable(
                 rejectionMessage("ITEM_BLOCKED")
             );
         }
 
-        if ("Unavailable".equals(item.stockDisplay())) {
+        if (!item.operating()) {
             return session.withQuoteUnavailable(
                 rejectionMessage("ITEM_NOT_OPERATING")
             );

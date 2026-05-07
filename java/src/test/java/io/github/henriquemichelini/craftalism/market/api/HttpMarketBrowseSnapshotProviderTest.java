@@ -3,6 +3,7 @@ package io.github.henriquemichelini.craftalism.market.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.henriquemichelini.craftalism.market.browse.MarketBrowseSnapshot;
 import java.net.URI;
@@ -100,7 +101,76 @@ class HttpMarketBrowseSnapshotProviderTest {
             "1820",
             snapshot.categories().getFirst().items().getFirst().stockDisplay()
         );
+        assertFalse(snapshot.categories().getFirst().items().getFirst().blocked());
+        assertTrue(snapshot.categories().getFirst().items().getFirst().operating());
         assertEquals("secret-token", authHeader.get());
+    }
+
+    @Test
+    void parsesOperatingPressureLadderSnapshotWithoutCurrentStockAsDisplayOnlyUnavailable() {
+        HttpMarketBrowseSnapshotProvider provider =
+            new HttpMarketBrowseSnapshotProvider(new MarketApiTransport() {
+                @Override
+                public String get(
+                    java.net.URI uri,
+                    java.time.Duration timeout,
+                    String bearerToken
+                ) {
+                    return """
+                    {
+                      "snapshotVersion": "pressure-ladder",
+                      "categories": [
+                        {
+                          "categoryId": "farming",
+                          "displayName": "Farming",
+                          "items": [
+                            {
+                              "itemId": "wheat",
+                              "displayName": "Wheat",
+                              "iconKey": "WHEAT",
+                              "buyUnitEstimate": 48000,
+                              "sellUnitEstimate": 41000,
+                              "variationPercent": 2.3,
+                              "blocked": false,
+                              "operating": true
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                    """;
+                }
+
+                @Override
+                public String postJson(
+                    java.net.URI uri,
+                    String body,
+                    java.time.Duration timeout,
+                    String bearerToken
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public String postForm(
+                    java.net.URI uri,
+                    String body,
+                    java.time.Duration timeout,
+                    String authorizationHeader
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+            }, URI.create("http://localhost:8080/market/snapshot"), Duration.ofSeconds(5), new YamlConfiguration(), () -> "secret-token");
+
+        MarketBrowseSnapshot snapshot = provider.loadSnapshot();
+
+        assertEquals(
+            "Unavailable",
+            snapshot.categories().getFirst().items().getFirst().stockDisplay()
+        );
+        assertFalse(snapshot.categories().getFirst().items().getFirst().blocked());
+        assertTrue(snapshot.categories().getFirst().items().getFirst().operating());
+        assertTrue(snapshot.categories().getFirst().items().getFirst().tradeAvailable());
     }
 
     @Test

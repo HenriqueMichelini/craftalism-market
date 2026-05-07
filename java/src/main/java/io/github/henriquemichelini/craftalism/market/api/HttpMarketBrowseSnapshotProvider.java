@@ -111,6 +111,8 @@ public final class HttpMarketBrowseSnapshotProvider
             String itemId = requiredString(itemJson, "itemId");
             String displayName = requiredString(itemJson, "displayName");
             String currency = optionalString(itemJson, "currency", "coins");
+            boolean blocked = booleanValue(itemJson, "blocked", false);
+            boolean operating = booleanValue(itemJson, "operating", true);
 
             items.add(
                 new MarketItemSnapshot(
@@ -134,7 +136,9 @@ public final class HttpMarketBrowseSnapshotProvider
                     formatVariation(
                         displayValue(itemJson.get("variationPercent"))
                     ),
-                    stockDisplay(itemJson),
+                    stockDisplay(itemJson, blocked, operating),
+                    blocked,
+                    operating,
                     optionalString(itemJson, "lastUpdatedAt", "Unknown")
                 )
             );
@@ -217,6 +221,18 @@ public final class HttpMarketBrowseSnapshotProvider
         return source.get(field).getAsString();
     }
 
+    private boolean booleanValue(
+        JsonObject source,
+        String field,
+        boolean fallback
+    ) {
+        if (!source.has(field) || source.get(field).isJsonNull()) {
+            return fallback;
+        }
+
+        return source.get(field).getAsBoolean();
+    }
+
     private String displayValue(JsonElement element) {
         if (element == null || element.isJsonNull()) {
             return "Unavailable";
@@ -252,12 +268,11 @@ public final class HttpMarketBrowseSnapshotProvider
         return variation + "%";
     }
 
-    private String stockDisplay(JsonObject itemJson) {
-        boolean blocked =
-            itemJson.has("blocked") && itemJson.get("blocked").getAsBoolean();
-        boolean operating =
-            !itemJson.has("operating") ||
-            itemJson.get("operating").getAsBoolean();
+    private String stockDisplay(
+        JsonObject itemJson,
+        boolean blocked,
+        boolean operating
+    ) {
         String stock = displayValue(itemJson.get("currentStock"));
 
         if (blocked) {

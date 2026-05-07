@@ -260,6 +260,22 @@ class MarketGuiServiceTest {
     }
 
     @Test
+    void sessionForSnapshotKeepsTradeLiveWhenOnlyStockDisplayIsUnavailable() {
+        MarketGuiService guiService = guiService(new YamlConfiguration());
+
+        MarketSession refreshed = guiService.sessionForSnapshot(
+            MarketSession.tradeView("farming", "wheat", false)
+                .withQuantity(2)
+                .withQuoteRefreshPending(),
+            unavailableDisplayOperatingSnapshot(false)
+        );
+
+        assertEquals(MarketQuoteStatus.PENDING, refreshed.quoteStatus());
+        assertEquals("Refreshing quote...", refreshed.quoteStatusMessage());
+        assertEquals(2, refreshed.quantity());
+    }
+
+    @Test
     void sessionForSnapshotDisablesTradeWhenItemDisappearsFromRefreshedSnapshot() {
         MarketGuiService guiService = guiService(new YamlConfiguration());
 
@@ -2931,19 +2947,25 @@ class MarketGuiServiceTest {
     }
 
     private MarketBrowseSnapshot sampleSnapshot(boolean readOnly) {
-        return snapshot(readOnly, "snapshot-v1", "Stock: 1820");
+        return snapshot(readOnly, "snapshot-v1", "Stock: 1820", false, true);
     }
 
     private MarketBrowseSnapshot updatedSnapshot(boolean readOnly) {
-        return snapshot(readOnly, "snapshot-v2", "Stock: 640");
+        return snapshot(readOnly, "snapshot-v2", "Stock: 640", false, true);
     }
 
     private MarketBrowseSnapshot blockedSnapshot(boolean readOnly) {
-        return snapshot(readOnly, "snapshot-v3", "Blocked");
+        return snapshot(readOnly, "snapshot-v3", "Blocked", true, true);
     }
 
     private MarketBrowseSnapshot unavailableSnapshot(boolean readOnly) {
-        return snapshot(readOnly, "snapshot-v4", "Unavailable");
+        return snapshot(readOnly, "snapshot-v4", "Unavailable", false, false);
+    }
+
+    private MarketBrowseSnapshot unavailableDisplayOperatingSnapshot(
+        boolean readOnly
+    ) {
+        return snapshot(readOnly, "snapshot-v6", "Unavailable", false, true);
     }
 
     private MarketBrowseSnapshot missingItemSnapshot(boolean readOnly) {
@@ -2965,7 +2987,9 @@ class MarketGuiServiceTest {
     private MarketBrowseSnapshot snapshot(
         boolean readOnly,
         String snapshotVersion,
-        String stockDisplay
+        String stockDisplay,
+        boolean blocked,
+        boolean operating
     ) {
         return new MarketBrowseSnapshot(
             snapshotVersion,
@@ -2985,6 +3009,8 @@ class MarketGuiServiceTest {
                             "4.1 coins",
                             "2.3%",
                             stockDisplay,
+                            blocked,
+                            operating,
                             "Fixture"
                         )
                     )
