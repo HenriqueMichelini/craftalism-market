@@ -1,0 +1,79 @@
+name: Gradle Compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/gradle-compatibility.yml"
+      - ".github/workflows/quality-gates.yml"
+      - ".github/workflows/quality.yml"
+      - "java/build.gradle"
+      - "java/settings.gradle"
+      - "java/gradle.properties"
+      - "java/gradle/**"
+      - "java/gradlew"
+      - "java/gradlew.bat"
+  push:
+    branches:
+      - main
+      - master
+      - "feature/**"
+    paths:
+      - ".github/workflows/gradle-compatibility.yml"
+      - ".github/workflows/quality-gates.yml"
+      - ".github/workflows/quality.yml"
+      - "java/build.gradle"
+      - "java/settings.gradle"
+      - "java/gradle.properties"
+      - "java/gradle/**"
+      - "java/gradlew"
+      - "java/gradlew.bat"
+  schedule:
+    - cron: "7 5 * * 1"
+
+jobs:
+  gradle-compatibility:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: java
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Verify repeated non-clean build
+        run: |
+          ./gradlew --no-daemon build
+          ./gradlew --no-daemon build
+
+      - name: Verify configuration cache reuse
+        run: |
+          ./gradlew --no-daemon build --configuration-cache
+          ./gradlew --no-daemon build --configuration-cache
+
+      - name: Verify build cache tolerance
+        run: |
+          ./gradlew --no-daemon build --build-cache
+          ./gradlew --no-daemon build --build-cache
+
+      - name: Verify parallel build tolerance
+        run: |
+          ./gradlew --no-daemon build --parallel
+          ./gradlew --no-daemon build --parallel
+
+      - name: Verify tests with conservative worker limit
+        run: ./gradlew --no-daemon test --rerun-tasks -Dorg.gradle.workers.max=4
