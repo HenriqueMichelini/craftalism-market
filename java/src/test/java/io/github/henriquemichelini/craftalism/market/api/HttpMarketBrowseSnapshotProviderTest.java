@@ -243,6 +243,112 @@ class HttpMarketBrowseSnapshotProviderTest {
     }
 
     @Test
+    void parsesExpandedBackendDefaultCatalogWithoutStaticItemMetadata() {
+        HttpMarketBrowseSnapshotProvider provider = providerReturning("""
+            {
+              "snapshotVersion": "expanded-catalog",
+              "categories": [
+                {
+                  "categoryId": "farming",
+                  "displayName": "Farming",
+                  "items": [
+                    { "itemId": "carrot", "displayName": "Carrot", "iconKey": "CARROT", "buyUnitEstimate": 10000, "sellUnitEstimate": 8000, "variationPercent": -1.4, "blocked": false, "operating": true },
+                    { "itemId": "potato", "displayName": "Potato", "iconKey": "POTATO", "buyUnitEstimate": 12000, "sellUnitEstimate": 9600, "variationPercent": 0.8, "blocked": false, "operating": true },
+                    { "itemId": "sugar_cane", "displayName": "Sugar Cane", "iconKey": "SUGAR_CANE", "buyUnitEstimate": 18000, "sellUnitEstimate": 14400, "variationPercent": 1.7, "blocked": false, "operating": true },
+                    { "itemId": "wheat", "displayName": "Wheat", "iconKey": "WHEAT", "buyUnitEstimate": 50000, "sellUnitEstimate": 40000, "variationPercent": 2.3, "blocked": false, "operating": true }
+                  ]
+                },
+                {
+                  "categoryId": "forestry",
+                  "displayName": "Forestry",
+                  "items": [
+                    { "itemId": "oak_log", "displayName": "Oak Log", "iconKey": "OAK_LOG", "buyUnitEstimate": 25000, "sellUnitEstimate": 20000, "variationPercent": -0.2, "blocked": false, "operating": true },
+                    { "itemId": "spruce_log", "displayName": "Spruce Log", "iconKey": "SPRUCE_LOG", "buyUnitEstimate": 28000, "sellUnitEstimate": 22400, "variationPercent": 0.4, "blocked": false, "operating": true }
+                  ]
+                },
+                {
+                  "categoryId": "mining",
+                  "displayName": "Mining",
+                  "items": [
+                    { "itemId": "coal", "displayName": "Coal", "iconKey": "COAL", "buyUnitEstimate": 35000, "sellUnitEstimate": 28000, "variationPercent": 0.9, "blocked": false, "operating": true },
+                    { "itemId": "cobblestone", "displayName": "Cobblestone", "iconKey": "COBBLESTONE", "buyUnitEstimate": 4000, "sellUnitEstimate": 3200, "variationPercent": -0.8, "blocked": false, "operating": true },
+                    { "itemId": "diamond", "displayName": "Diamond", "iconKey": "DIAMOND", "buyUnitEstimate": 900000, "sellUnitEstimate": 720000, "variationPercent": 4.5, "blocked": false, "operating": true },
+                    { "itemId": "gold_ingot", "displayName": "Gold Ingot", "iconKey": "GOLD_INGOT", "buyUnitEstimate": 220000, "sellUnitEstimate": 176000, "variationPercent": 2.8, "blocked": false, "operating": true },
+                    { "itemId": "iron_ingot", "displayName": "Iron Ingot", "iconKey": "IRON_INGOT", "buyUnitEstimate": 140000, "sellUnitEstimate": 112000, "variationPercent": 1.1, "blocked": false, "operating": true }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        MarketBrowseSnapshot snapshot = provider.loadSnapshot();
+
+        assertEquals(3, snapshot.categories().size());
+        assertEquals(11, snapshot.categories().stream().mapToInt(category -> category.items().size()).sum());
+        assertTrue(snapshot.findItem("farming", "potato").isPresent());
+        assertTrue(snapshot.findItem("farming", "sugar_cane").isPresent());
+        assertTrue(snapshot.findItem("forestry", "oak_log").isPresent());
+        assertTrue(snapshot.findItem("forestry", "spruce_log").isPresent());
+        assertTrue(snapshot.findItem("mining", "cobblestone").isPresent());
+        assertTrue(snapshot.findItem("mining", "coal").isPresent());
+        assertTrue(snapshot.findItem("mining", "gold_ingot").isPresent());
+        assertTrue(snapshot.findItem("mining", "diamond").isPresent());
+        assertEquals(Material.OAK_LOG, snapshot.findCategory("forestry").orElseThrow().icon());
+    }
+
+    @Test
+    void keepsSnapshotItemVisibleWhenIconKeyIsMissingOrNeedsNormalization() {
+        HttpMarketBrowseSnapshotProvider provider = providerReturning("""
+            {
+              "snapshotVersion": "normalized-icons",
+              "categories": [
+                {
+                  "categoryId": "farming",
+                  "displayName": "Farming",
+                  "items": [
+                    {
+                      "itemId": "sugar_cane",
+                      "displayName": "Sugar Cane",
+                      "iconKey": "minecraft:sugar-cane",
+                      "buyUnitEstimate": 18000,
+                      "sellUnitEstimate": 14400,
+                      "variationPercent": 1.7,
+                      "blocked": false,
+                      "operating": true
+                    },
+                    {
+                      "itemId": "potato",
+                      "displayName": "Potato",
+                      "buyUnitEstimate": 12000,
+                      "sellUnitEstimate": 9600,
+                      "variationPercent": 0.8,
+                      "blocked": false,
+                      "operating": true
+                    },
+                    {
+                      "itemId": "custom_backend_item",
+                      "displayName": "Custom Backend Item",
+                      "iconKey": "NOT_A_BUKKIT_MATERIAL",
+                      "buyUnitEstimate": 12000,
+                      "sellUnitEstimate": 9600,
+                      "variationPercent": 0.8,
+                      "blocked": false,
+                      "operating": true
+                    }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        MarketBrowseSnapshot snapshot = provider.loadSnapshot();
+
+        assertEquals(Material.SUGAR_CANE, snapshot.findItem("farming", "sugar_cane").orElseThrow().icon());
+        assertEquals(Material.POTATO, snapshot.findItem("farming", "potato").orElseThrow().icon());
+        assertEquals(Material.CHEST, snapshot.findItem("farming", "custom_backend_item").orElseThrow().icon());
+    }
+
+    @Test
     void rejectsMissingCategoriesArray() {
         HttpMarketBrowseSnapshotProvider provider =
             new HttpMarketBrowseSnapshotProvider(new MarketApiTransport() {
@@ -284,5 +390,38 @@ class HttpMarketBrowseSnapshotProviderTest {
             "Missing array field 'categories' in market snapshot response.",
             error.getMessage()
         );
+    }
+
+    private HttpMarketBrowseSnapshotProvider providerReturning(String responseBody) {
+        return new HttpMarketBrowseSnapshotProvider(new MarketApiTransport() {
+            @Override
+            public String get(
+                java.net.URI uri,
+                java.time.Duration timeout,
+                String bearerToken
+            ) {
+                return responseBody;
+            }
+
+            @Override
+            public String postJson(
+                java.net.URI uri,
+                String body,
+                java.time.Duration timeout,
+                String bearerToken
+            ) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String postForm(
+                java.net.URI uri,
+                String body,
+                java.time.Duration timeout,
+                String authorizationHeader
+            ) {
+                throw new UnsupportedOperationException();
+            }
+        }, URI.create("http://localhost:8080/market/snapshot"), Duration.ofSeconds(5), new YamlConfiguration(), () -> "secret-token");
     }
 }

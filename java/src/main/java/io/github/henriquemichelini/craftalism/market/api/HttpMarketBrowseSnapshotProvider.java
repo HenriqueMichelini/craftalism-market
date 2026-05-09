@@ -13,6 +13,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -118,10 +119,7 @@ public final class HttpMarketBrowseSnapshotProvider
                 new MarketItemSnapshot(
                     itemId,
                     displayName,
-                    parseMaterial(
-                        requiredString(itemJson, "iconKey"),
-                        categoryId + "." + itemId + ".iconKey"
-                    ),
+                    itemIcon(itemJson, itemId),
                     descriptionList(
                         "market-display.items." + itemId + ".description"
                     ),
@@ -155,10 +153,10 @@ public final class HttpMarketBrowseSnapshotProvider
             "market-display.categories." + categoryId + ".icon"
         );
         if (override != null && !override.isBlank()) {
-            return parseMaterial(
-                override,
-                "market-display.categories." + categoryId + ".icon"
-            );
+            Material configured = materialOrNull(override);
+            if (configured != null) {
+                return configured;
+            }
         }
 
         if (!items.isEmpty()) {
@@ -172,19 +170,42 @@ public final class HttpMarketBrowseSnapshotProvider
         return config.getStringList(path);
     }
 
-    private Material parseMaterial(String materialName, String path) {
-        Material material = Material.matchMaterial(materialName);
-        if (material == null) {
-            throw new IllegalStateException(
-                "Invalid material '" +
-                    materialName +
-                    "' configured at " +
-                    path +
-                    "."
-            );
+    private Material itemIcon(JsonObject itemJson, String itemId) {
+        Material material = materialOrNull(
+            optionalString(itemJson, "iconKey", "")
+        );
+        if (material != null) {
+            return material;
         }
 
-        return material;
+        material = materialOrNull(itemId);
+        if (material != null) {
+            return material;
+        }
+
+        return Material.CHEST;
+    }
+
+    private Material materialOrNull(String materialName) {
+        if (materialName == null || materialName.isBlank()) {
+            return null;
+        }
+
+        Material direct = Material.matchMaterial(materialName);
+        if (direct != null) {
+            return direct;
+        }
+
+        String normalized = materialName.trim();
+        int namespaceIndex = normalized.indexOf(':');
+        if (namespaceIndex >= 0 && namespaceIndex < normalized.length() - 1) {
+            normalized = normalized.substring(namespaceIndex + 1);
+        }
+        normalized = normalized
+            .toUpperCase(Locale.ROOT)
+            .replace('-', '_')
+            .replace(' ', '_');
+        return Material.matchMaterial(normalized);
     }
 
     private JsonArray requiredArray(JsonObject source, String field) {
