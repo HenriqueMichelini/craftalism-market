@@ -20,4 +20,18 @@ class MoneyValueFormatterTest {
         assertEquals("1.2346", MoneyValueFormatter.normalize("12345.6"));
         assertEquals("0.0001", MoneyValueFormatter.normalize("1"));
     }
+
+    @Test
+    void formatsMessageAmountsWithFixedTwoDecimalPlaces() {
+        assertEquals("19.80", MoneyValueFormatter.formatMessageAmount("19.8"));
+        assertEquals("1.23", MoneyValueFormatter.formatMessageAmount("1.234"));
+        assertEquals("1.24", MoneyValueFormatter.formatMessageAmount("1.235"));
+        assertEquals("0.00", MoneyValueFormatter.formatMessageAmount("0.0014"));
+    }
+
+    @Test
+    void leavesInvalidMessageAmountsUnchanged() {
+        assertEquals("", MoneyValueFormatter.formatMessageAmount(""));
+        assertEquals("Unavailable", MoneyValueFormatter.formatMessageAmount("Unavailable"));
+    }
 }

@@ -331,7 +331,7 @@ class MarketGuiServiceTest {
         );
 
         assertEquals(
-            "&cSell completed for 20.5 coins, but local removal only removed 3/5 WHEAT. Missing: 2. Contact staff.",
+            "&cSell completed for 20.50 coins, but local removal only removed 3/5 WHEAT. Missing: 2. Contact staff.",
             message
         );
     }
@@ -351,7 +351,7 @@ class MarketGuiServiceTest {
         );
 
         assertEquals(
-            "Market sell compensation issue for player aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee: item=WHEAT, executed=5, removed=3, missing=2, settled=20.5 coins, snapshotVersion=snapshot-v7",
+            "Market sell compensation issue for player aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee: item=WHEAT, executed=5, removed=3, missing=2, settled=20.50 coins, snapshotVersion=snapshot-v7",
             message
         );
     }
@@ -364,7 +364,8 @@ class MarketGuiServiceTest {
             inventoryAccess
         );
         UUID playerId = UUID.randomUUID();
-        Player player = fakePlayer(playerId);
+        List<String> messages = new ArrayList<>();
+        Player player = fakeOnlinePlayer(playerId, messages);
 
         guiService.queueDeferredSettlement(
             playerId,
@@ -385,6 +386,10 @@ class MarketGuiServiceTest {
 
         assertEquals(0, guiService.deferredSettlementCount(playerId));
         assertEquals(5, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(
+            List.of("\u00a7aPurchased 5 item(s) for 20.50 coins."),
+            messages
+        );
     }
 
     @Test
@@ -442,6 +447,7 @@ class MarketGuiServiceTest {
                         ) &&
                         message.contains("item=WHEAT") &&
                         message.contains("executed=5") &&
+                        message.contains("settled=20.50 coins") &&
                         message.contains("snapshotVersion=snapshot-v7")
                 )
         );
@@ -456,7 +462,8 @@ class MarketGuiServiceTest {
             inventoryAccess
         );
         UUID playerId = UUID.randomUUID();
-        Player player = fakePlayer(playerId);
+        List<String> messages = new ArrayList<>();
+        Player player = fakeOnlinePlayer(playerId, messages);
 
         guiService.queueDeferredSettlement(
             playerId,
@@ -477,6 +484,7 @@ class MarketGuiServiceTest {
 
         assertEquals(0, guiService.deferredSettlementCount(playerId));
         assertEquals(0, inventoryAccess.quantity(Material.WHEAT));
+        assertEquals(List.of("\u00a7aSold 4 item(s) for 16.40 coins."), messages);
     }
 
     @Test
@@ -665,6 +673,7 @@ class MarketGuiServiceTest {
                         ) &&
                         message.contains("item=WHEAT") &&
                         message.contains("executed=4") &&
+                        message.contains("settled=16.40 coins") &&
                         message.contains("snapshotVersion=snapshot-v7")
                 )
         );
@@ -2930,6 +2939,18 @@ class MarketGuiServiceTest {
         config.set(
             "messages.rejections.UNKNOWN_ITEM",
             "&cThat item is no longer available."
+        );
+        config.set(
+            "messages.buy-success",
+            "&aPurchased {quantity} item(s) for {total}."
+        );
+        config.set(
+            "messages.sell-success",
+            "&aSold {quantity} item(s) for {total}."
+        );
+        config.set(
+            "messages.buy-overflow",
+            "&ePurchased {quantity} item(s) for {total}. Dropped {dropped} item(s) because your inventory was full."
         );
         config.set(
             "messages.sell-removal-failed",

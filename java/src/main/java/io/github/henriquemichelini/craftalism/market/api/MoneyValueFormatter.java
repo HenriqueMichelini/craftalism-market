@@ -35,6 +35,19 @@ public final class MoneyValueFormatter {
         return normalize(element.getAsString());
     }
 
+    public static String formatMessageAmount(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+
+        try {
+            BigDecimal parsed = new BigDecimal(value);
+            return parsed.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        } catch (NumberFormatException exception) {
+            return value;
+        }
+    }
+
     private static String formatDisplayValue(BigDecimal value) {
         return value
             .divide(ECONOMY_DECIMAL_SCALE, MAX_DISPLAY_SCALE, RoundingMode.HALF_UP)

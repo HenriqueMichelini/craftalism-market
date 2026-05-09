@@ -2,6 +2,7 @@ package io.github.henriquemichelini.craftalism.market.gui;
 
 import io.github.henriquemichelini.craftalism.market.api.MarketExecuteResult;
 import io.github.henriquemichelini.craftalism.market.api.MarketQuoteSide;
+import io.github.henriquemichelini.craftalism.market.api.MoneyValueFormatter;
 import io.github.henriquemichelini.craftalism.market.inventory.MarketInventoryAccess;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -161,7 +162,7 @@ final class MarketSettlementService {
                     )
                     .replace(
                         "{total}",
-                        result.totalPrice() + " " + result.currency()
+                        messageTotal(result)
                     )
                     .replace(
                         "{dropped}",
@@ -181,7 +182,7 @@ final class MarketSettlementService {
                 )
                 .replace(
                     "{total}",
-                    result.totalPrice() + " " + result.currency()
+                    messageTotal(result)
                 )
         );
         return true;
@@ -212,7 +213,7 @@ final class MarketSettlementService {
                 )
                 .replace(
                     "{total}",
-                    result.totalPrice() + " " + result.currency()
+                    messageTotal(result)
                 )
         );
         return true;
@@ -236,7 +237,7 @@ final class MarketSettlementService {
                     Math.max(0, result.executedQuantity() - removedQuantity)
                 )
             )
-            .replace("{total}", result.totalPrice() + " " + result.currency())
+            .replace("{total}", messageTotal(result))
             .replace("{snapshotVersion}", result.snapshotVersion());
     }
 
@@ -256,7 +257,7 @@ final class MarketSettlementService {
                     Math.max(0, result.executedQuantity() - removedQuantity)
                 )
             )
-            .replace("{total}", result.totalPrice() + " " + result.currency());
+            .replace("{total}", messageTotal(result));
     }
 
     private void reportSellRemovalFailure(
@@ -303,9 +304,7 @@ final class MarketSettlementService {
                     ", executed=" +
                     settlement.result().executedQuantity() +
                     ", settled=" +
-                    settlement.result().totalPrice() +
-                    " " +
-                    settlement.result().currency() +
+                    messageTotal(settlement.result()) +
                     ", snapshotVersion=" +
                     settlement.result().snapshotVersion()
             );
@@ -331,9 +330,7 @@ final class MarketSettlementService {
                     ", executed=" +
                     settlement.result().executedQuantity() +
                     ", settled=" +
-                    settlement.result().totalPrice() +
-                    " " +
-                    settlement.result().currency() +
+                    messageTotal(settlement.result()) +
                     ", snapshotVersion=" +
                     settlement.result().snapshotVersion()
             );
@@ -373,5 +370,13 @@ final class MarketSettlementService {
         }
 
         deferredSettlementStore.save(deferredSettlements);
+    }
+
+    private String messageTotal(MarketExecuteResult result) {
+        return (
+            MoneyValueFormatter.formatMessageAmount(result.totalPrice()) +
+            " " +
+            result.currency()
+        );
     }
 }
